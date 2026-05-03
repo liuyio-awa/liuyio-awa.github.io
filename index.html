@@ -2,11 +2,16 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>My Blog & Tools</title>
+  <title>My Blog</title>
   <link rel="stylesheet" href="style.css">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-cpp.min.js"></script>
+  <style>
+    .admin-area { display: none; margin-top:10px; }
+    .admin-show { display: block !important; }
+    .del-btn { background:#c41; border:none; color:white; padding:4px 8px; border-radius:4px; font-size:12px; cursor:pointer; margin-top:8px; }
+  </style>
 </head>
 <body>
 <div class="container">
@@ -15,15 +20,17 @@
     <nav>
       <a href="index.html">博客</a>
       <a href="tools.html">工具</a>
+      <button onclick="toggleAdmin()" style="margin-left:10px;">🔑 管理模式</button>
     </nav>
   </header>
 
-  <div class="post-editor">
-    <input id="title" placeholder="文章标题">
-    <textarea id="content" placeholder="文章内容（支持```cpp代码块）"></textarea>
-    <input id="token" placeholder="GitHub Token（仅本地保存）">
-    <button onclick="publish()">发布到 GitHub Issues</button>
-    <button onclick="loadPosts()">刷新文章</button>
+  <div class="admin-area" id="adminArea">
+    <div class="post-editor">
+      <input id="title" placeholder="文章标题">
+      <textarea id="content" placeholder="文章内容"></textarea>
+      <input id="token" placeholder="GitHub Token">
+      <button onclick="publish()">发布文章</button>
+    </div>
   </div>
 
   <div id="posts"><div class="empty-posts">加载中...</div></div>
@@ -32,108 +39,93 @@
 <script>
 const USER = "liuyio-awa";
 const REPO = "liuyio-awa.github.io";
-let gToken = "";
+let adminMode = false;
+let token = localStorage.getItem("gh_token") || "";
 
 window.onload = () => {
-  gToken = localStorage.getItem("gh_token") || "";
-  document.getElementById("token").value = gToken;
-  loadPosts();
+  if(token) document.getElementById("token").value = token;
+  loadPublicPosts();
 };
 
-// 发布
+// 切换管理员面板
+function toggleAdmin() {
+  adminMode = !adminMode;
+  const area = document.getElementById("adminArea");
+  adminMode ? area.classList.add("admin-show") : area.classList.remove("admin-show");
+}
+
+// 游客：公开加载文章（不需要token！！！）
+async function loadPublicPosts() {
+  const el = document.getElementById("posts");
+  el.innerHTML = "加载中...";
+  try {
+    const res = await fetch(`https://api.github.com/repos/${USER}/${REPO}/issues`);
+    const list = await res.json();
+    const posts = list.filter(p => !p.pull_request);
+
+    el.innerHTML = posts.map(p => `
+      <div class="post">
+        <h2>${esc(p.title)}</h2>
+        <div class="post-content">${md(p.body)}</div>
+        ${token ? `<button class="del-btn" onclick="delPost(${p.number})">删除文章</button>` : ""}
+      </div>
+    `).join("");
+
+    Prism.highlightAll();
+  } catch (e) {
+    el.innerHTML = "加载失败";
+  }
+}
+
+// 发布文章（管理员）
 async function publish() {
   const title = document.getElementById("title").value.trim();
   const body = document.getElementById("content").value.trim();
   const tk = document.getElementById("token").value.trim();
+  if(!title||!body||!tk) return alert("请完整填写");
 
-  if (!title || !body) return alert("标题和内容不能为空");
-  if (!tk) return alert("请输入 GitHub Token");
+  token = tk;
+  localStorage.setItem("gh_token", token);
 
-  gToken = tk;
-  localStorage.setItem("gh_token", gToken);
+  const res = await fetch(`https://api.github.com/repos/${USER}/${REPO}/issues`, {
+    method: "POST",
+    headers: { Authorization: "token " + token, "Content-Type": "application/json" },
+    body: JSON.stringify({ title, body })
+  });
 
-  try {
-    const res = await fetch(`https://api.github.com/repos/${USER}/${REPO}/issues`, {
-      method: "POST",
-      headers: {
-        "Authorization": `token ${gToken}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ title, body })
-    });
-
-    if (res.ok) {
-      alert("发布成功！");
-      document.getElementById("title").value = "";
-      document.getElementById("content").value = "";
-      loadPosts();
-    } else {
-      alert("发布失败，检查Token权限");
-    }
-  } catch (e) {
-    alert("发布请求异常");
-  }
+  if(res.ok) {
+    alert("发布成功！");
+    document.getElementById("title").value = "";
+    document.getElementById("content").value = "";
+    loadPublicPosts();
+  } else alert("发布失败");
 }
 
-// 重点：读接口也带Token，直接过CORS，不用绕
-async function loadPosts() {
-  const el = document.getElementById("posts");
-  el.innerHTML = "<div class='empty-posts'>加载中...</div>";
-
-  if (!gToken) {
-    el.innerHTML = "<div class='empty-posts'>请先填入GitHub Token</div>";
-    return;
-  }
-
-  try {
-    // 读取也带Authorization，直接放行，无跨域
-    const res = await fetch(`https://api.github.com/repos/${USER}/${REPO}/issues`, {
-      headers: {
-        "Authorization": `token ${gToken}`
-      }
-    });
-
-    const data = await res.json();
-    // 过滤掉PR，只留文章
-    const list = data.filter(item => !item.pull_request);
-
-    if (list.length === 0) {
-      el.innerHTML = "<div class='empty-posts'>暂无文章</div>";
-      return;
-    }
-
-    let html = "";
-    list.forEach(item => {
-      html += `
-      <div class="post">
-        <h2>${escapeHtml(item.title)}</h2>
-        <div class="post-content">${renderMd(item.body || "")}</div>
-      </div>
-      `;
-    });
-
-    el.innerHTML = html;
-    Prism.highlightAll();
-  } catch (e) {
-    el.innerHTML = "<div class='empty-posts'>加载失败，请检查Token是否有效</div>";
-    console.error(e);
-  }
+// 删除文章（管理员）
+async function delPost(num) {
+  if(!confirm("确定删除？")) return;
+  await fetch(`https://api.github.com/repos/${USER}/${REPO}/issues/${num}`, {
+    method: "PATCH",
+    headers: { Authorization: "token " + token, "Content-Type": "application/json" },
+    body: JSON.stringify({ state: "closed" })
+  });
+  loadPublicPosts();
 }
 
-function escapeHtml(s) {
-  if (!s) return "";
+function esc(s) {
+  if(!s) return "";
   return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
-function renderMd(s) {
-  if (!s) return "";
-  s = s.replace(/```([\s\S]*?)```/g, (_, code) => {
-    const lines = code.split("\n");
-    const lang = lines[0] || "text";
-    const c = lines.slice(1).join("\n");
-    return `<pre><code class="language-${lang}">${escapeHtml(c)}</code></pre>`;
+function md(s) {
+  if(!s) return "";
+  s = s.replace(/```([\s\S]*?)```/g, (_,c)=>{
+    const lines = c.split("\n");
+    const lang = lines[0]||"text";
+    const code = lines.slice(1).join("\n");
+    return `<pre><code class="language-${lang}">${esc(code)}</code></pre>`;
   });
-  return s.replace(/\n/g, "<br>");
+  return s.replace(/\n/g,"<br>");
 }
 </script>
 </body>
