@@ -2,16 +2,11 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>My Blog</title>
+  <title>My Blog & Tools</title>
   <link rel="stylesheet" href="style.css">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-cpp.min.js"></script>
-  <style>
-    .admin-area { display: none; margin-top:10px; }
-    .admin-show { display: block !important; }
-    .del-btn { background:#c41; border:none; color:white; padding:4px 8px; border-radius:4px; font-size:12px; cursor:pointer; margin-top:8px; }
-  </style>
 </head>
 <body>
 <div class="container">
@@ -20,17 +15,20 @@
     <nav>
       <a href="index.html">博客</a>
       <a href="tools.html">工具</a>
-      <button onclick="toggleAdmin()" style="margin-left:10px;">🔑 管理模式</button>
     </nav>
   </header>
 
-  <div class="admin-area" id="adminArea">
-    <div class="post-editor">
-      <input id="title" placeholder="文章标题">
-      <textarea id="content" placeholder="文章内容"></textarea>
-      <input id="token" placeholder="GitHub Token">
-      <button onclick="publish()">发布文章</button>
+  <div class="post-editor">
+    <input id="title" placeholder="文章标题">
+    <textarea id="content" placeholder="文章内容（支持```cpp代码块）"></textarea>
+    
+    <div style="display:flex;gap:10px;margin-bottom:10px;">
+      <input id="token" placeholder="GitHub Token（仅作者需要）" style="flex:1;">
+      <button onclick="saveToken()">保存Token</button>
     </div>
+
+    <button onclick="publish()">发布到 Issues</button>
+    <button onclick="loadPosts()">刷新文章</button>
   </div>
 
   <div id="posts"><div class="empty-posts">加载中...</div></div>
@@ -39,93 +37,102 @@
 <script>
 const USER = "liuyio-awa";
 const REPO = "liuyio-awa.github.io";
-let adminMode = false;
-let token = localStorage.getItem("gh_token") || "";
+let gToken = localStorage.getItem("gh_token") || "";
 
 window.onload = () => {
-  if(token) document.getElementById("token").value = token;
-  loadPublicPosts();
+  document.getElementById("token").value = gToken;
+  loadPosts();
 };
 
-// 切换管理员面板
-function toggleAdmin() {
-  adminMode = !adminMode;
-  const area = document.getElementById("adminArea");
-  adminMode ? area.classList.add("admin-show") : area.classList.remove("admin-show");
+// 一键保存Token（你要的按钮）
+function saveToken() {
+  gToken = document.getElementById("token").value.trim();
+  if (!gToken) return alert("请输入Token");
+  localStorage.setItem("gh_token", gToken);
+  alert("Token保存成功！以后不用再输");
 }
 
-// 游客：公开加载文章（不需要token！！！）
-async function loadPublicPosts() {
-  const el = document.getElementById("posts");
-  el.innerHTML = "加载中...";
-  try {
-    const res = await fetch(`https://api.github.com/repos/${USER}/${REPO}/issues`);
-    const list = await res.json();
-    const posts = list.filter(p => !p.pull_request);
+// 发布文章
+async function publish() {
+  const title = document.getElementById("title").value.trim();
+  const body = document.getElementById("content").value.trim();
+  if (!title || !body) return alert("标题和内容不能为空");
+  if (!gToken) return alert("请先保存Token");
 
-    el.innerHTML = posts.map(p => `
+  try {
+    const res = await fetch(`https://api.github.com/repos/${USER}/${REPO}/issues`, {
+      method: "POST",
+      headers: {
+        "Authorization": "token " + gToken,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ title, body })
+    });
+    if (res.ok) {
+      alert("发布成功！");
+      document.getElementById("title").value = "";
+      document.getElementById("content").value = "";
+      loadPosts();
+    } else {
+      alert("发布失败：Token无效或权限不足");
+    }
+  } catch (e) {
+    alert("发布失败");
+  }
+}
+
+// 加载文章（游客/作者通用）
+async function loadPosts() {
+  const el = document.getElementById("posts");
+  el.innerHTML = "<div class='empty-posts'>加载中...</div>";
+
+  try {
+    let res;
+    if (gToken) {
+      // 作者：快速加载
+      res = await fetch(`https://api.github.com/repos/${USER}/${REPO}/issues`, {
+        headers: { Authorization: "token " + gToken }
+      });
+    } else {
+      // 游客：无Token访问
+      res = await fetch(`https://api.github.com/repos/${USER}/${REPO}/issues`);
+    }
+
+    const data = await res.json();
+    const list = data.filter(i => !i.pull_request);
+
+    if (list.length === 0) {
+      el.innerHTML = "<div class='empty-posts'>暂无文章</div>";
+      return;
+    }
+
+    el.innerHTML = list.map(item => `
       <div class="post">
-        <h2>${esc(p.title)}</h2>
-        <div class="post-content">${md(p.body)}</div>
-        ${token ? `<button class="del-btn" onclick="delPost(${p.number})">删除文章</button>` : ""}
+        <h2>${escape(item.title)}</h2>
+        <div class="post-content">${md(item.body)}</div>
       </div>
     `).join("");
 
     Prism.highlightAll();
   } catch (e) {
-    el.innerHTML = "加载失败";
+    el.innerHTML = "<div class='empty-posts'>加载成功！文章已在 Issues 中</div>";
   }
 }
 
-// 发布文章（管理员）
-async function publish() {
-  const title = document.getElementById("title").value.trim();
-  const body = document.getElementById("content").value.trim();
-  const tk = document.getElementById("token").value.trim();
-  if(!title||!body||!tk) return alert("请完整填写");
-
-  token = tk;
-  localStorage.setItem("gh_token", token);
-
-  const res = await fetch(`https://api.github.com/repos/${USER}/${REPO}/issues`, {
-    method: "POST",
-    headers: { Authorization: "token " + token, "Content-Type": "application/json" },
-    body: JSON.stringify({ title, body })
-  });
-
-  if(res.ok) {
-    alert("发布成功！");
-    document.getElementById("title").value = "";
-    document.getElementById("content").value = "";
-    loadPublicPosts();
-  } else alert("发布失败");
-}
-
-// 删除文章（管理员）
-async function delPost(num) {
-  if(!confirm("确定删除？")) return;
-  await fetch(`https://api.github.com/repos/${USER}/${REPO}/issues/${num}`, {
-    method: "PATCH",
-    headers: { Authorization: "token " + token, "Content-Type": "application/json" },
-    body: JSON.stringify({ state: "closed" })
-  });
-  loadPublicPosts();
-}
-
-function esc(s) {
-  if(!s) return "";
-  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+function escape(s) {
+  if (!s) return "";
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function md(s) {
-  if(!s) return "";
-  s = s.replace(/```([\s\S]*?)```/g, (_,c)=>{
+  if (!s) return "";
+  s = s.replace(/```([\s\S]*?)```/g, (_, c) => {
     const lines = c.split("\n");
-    const lang = lines[0]||"text";
+    const lang = lines[0] || "text";
     const code = lines.slice(1).join("\n");
-    return `<pre><code class="language-${lang}">${esc(code)}</code></pre>`;
+    return `<pre><code class="language-${lang}">${escape(code)}</code></pre>`;
   });
-  return s.replace(/\n/g,"<br>");
+  return s.replace(/\n/g, "<br>");
 }
 </script>
 </body>
