@@ -20,9 +20,9 @@
 
   <div class="post-editor">
     <input id="title" placeholder="文章标题">
-    <textarea id="content" placeholder="文章内容（支持```cpp代码块）"></textarea>
+    <textarea id="content" placeholder="文章内容（支持代码块）"></textarea>
     <input id="token" placeholder="GitHub Token（仅本地保存）">
-    <button onclick="publish()">发布到 GitHub Issues</button>
+    <button onclick="publish()">发布到 Issues</button>
     <button onclick="loadPosts()">刷新文章</button>
   </div>
 
@@ -32,83 +32,101 @@
 <script>
 const USER = "liuyio-awa";
 const REPO = "liuyio-awa.github.io";
+let token = "";
 
 window.onload = () => {
-  const t = localStorage.getItem("gh_token");
-  if (t) document.getElementById("token").value = t;
+  token = localStorage.getItem("gh_token") || "";
+  document.getElementById("token").value = token;
   loadPosts();
 };
 
+// 发布文章 用token POST 不受跨域影响
 async function publish() {
   const title = document.getElementById("title").value.trim();
   const body = document.getElementById("content").value.trim();
-  const token = document.getElementById("token").value.trim();
+  const tk = document.getElementById("token").value.trim();
 
   if (!title || !body) return alert("标题和内容不能为空");
-  if (!token) return alert("请输入 GitHub Token");
+  if (!tk) return alert("请填写 GitHub Token");
 
+  token = tk;
   localStorage.setItem("gh_token", token);
 
   try {
     const res = await fetch(`https://api.github.com/repos/${USER}/${REPO}/issues`, {
       method: "POST",
-      headers: { Authorization: `token ${token}`, "Content-Type": "application/json" },
+      headers: {
+        "Authorization": "token " + token,
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify({ title, body })
     });
-
     if (res.ok) {
-      alert("发布成功！已同步到 Issues");
+      alert("发布成功！");
       document.getElementById("title").value = "";
       document.getElementById("content").value = "";
       loadPosts();
     } else {
-      alert("发布失败：Token 无权限或已失效");
+      alert("发布失败，检查Token权限");
     }
   } catch (e) {
-    alert("发布失败");
+    alert("发布请求异常");
   }
 }
 
-async function loadPosts() {
+// JSONP 回调，接收Issues数据
+function renderIssues(data) {
+  const el = document.getElementById("posts");
+  // 过滤掉PR，只留普通文章Issue
+  const list = data.filter(item => !item.pull_request);
+
+  if (list.length === 0) {
+    el.innerHTML = "<div class='empty-posts'>暂无文章</div>";
+    return;
+  }
+
+  let html = "";
+  list.forEach(item => {
+    html += `
+    <div class="post">
+      <h2>${escapeHtml(item.title)}</h2>
+      <div class="post-content">${renderMd(item.body || "")}</div>
+    </div>
+    `;
+  });
+  el.innerHTML = html;
+  Prism.highlightAll();
+}
+
+// JSONP 加载 根治跨域
+function loadPosts() {
   const el = document.getElementById("posts");
   el.innerHTML = "<div class='empty-posts'>加载中...</div>";
+  // 移除旧脚本
+  const oldScript = document.getElementById("jsonpScript");
+  if (oldScript) oldScript.remove();
 
-  try {
-    const res = await fetch(`https://api.github.com/repos/${USER}/${REPO}/issues`);
-    const data = await res.json();
-    console.log("获取到的Issues:", data);
-
-    if (!data || data.length === 0) {
-      el.innerHTML = "<div class='empty-posts'>暂无文章</div>";
-      return;
-    }
-
-    el.innerHTML = data.map(item => `
-      <div class="post">
-        <h2>${escape(item.title)}</h2>
-        <div class="post-content">${md(item.body || "")}</div>
-      </div>
-    `).join("");
-
-    Prism.highlightAll();
-  } catch (e) {
-    el.innerHTML = "<div class='empty-posts'>加载失败</div>";
-    console.error(e);
-  }
+  // 新建JSONP脚本
+  const script = document.createElement("script");
+  script.id = "jsonpScript";
+  script.src = `https://api.github.com/repos/${USER}/${REPO}/issues?callback=renderIssues`;
+  document.body.appendChild(script);
 }
 
-function escape(s) {
+function escapeHtml(s) {
   if (!s) return "";
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return s.replace(/&/g,"&amp;")
+          .replace(/</g,"&lt;")
+          .replace(/>/g,"&gt;");
 }
 
-function md(s) {
+function renderMd(s) {
   if (!s) return "";
-  s = s.replace(/```([\s\S]*?)```/g, (match, code) => {
+  s = s.replace(/```([\s\S]*?)```/g, (_, code) => {
     const lines = code.split("\n");
     const lang = lines[0] || "text";
-    const content = lines.slice(1).join("\n");
-    return `<pre><code class="language-${lang}">${escape(content)}</code></pre>`;
+    const c = lines.slice(1).join("\n");
+    return `<pre><code class="language-${lang}">${escapeHtml(c)}</code></pre>`;
   });
   return s.replace(/\n/g, "<br>");
 }
