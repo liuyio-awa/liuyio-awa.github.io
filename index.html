@@ -2,109 +2,109 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>My Blog</title>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box;}
-    body{background:#111;color:#eee;font-family:system-ui;max-width:900px;margin:0 auto;padding:20px;}
-    .edit-box{background:#222;padding:20px;border-radius:8px;margin-bottom:30px;}
-    input,textarea{width:100%;background:#333;border:1px:#444 solid;color:#fff;padding:10px;border-radius:6px;margin-bottom:10px;}
-    textarea{min-height:160px;}
-    button{background:#0066cc;border:none;color:#fff;padding:10px 18px;border-radius:6px;cursor:pointer;margin-right:8px;}
-    button:hover{background:#0055aa;}
-    .post{background:#1e1e1e;padding:18px;border-radius:8px;margin-bottom:15px;}
-    .post h2{color:#5af;margin-bottom:8px;}
-    .label{display:inline-block;background:#336;color:#8ff;padding:2px 8px;border-radius:4px;font-size:12px;margin-right:5px;}
-  </style>
+  <title>My Blog & Tools</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-cpp.min.js"></script>
 </head>
 <body>
+<div class="container">
+  <header>
+    <h1>My Blog</h1>
+    <nav>
+      <a href="index.html">博客</a>
+      <a href="tools.html">工具</a>
+    </nav>
+  </header>
 
-<div class="edit-box">
-  <h3>在线写文章，自动发布到 GitHub Issues</h3>
-  <input id="title" placeholder="文章标题">
-  <textarea id="content" placeholder="文章内容，支持代码块"></textarea>
-  <input id="tokenInput" placeholder="GitHub Token 只填一次，本地保存">
-  <button onclick="postToIssue()">一键发布到 Issues</button>
-  <button onclick="loadIssues()">刷新文章</button>
+  <div class="post-editor">
+    <input id="title" placeholder="文章标题">
+    <textarea id="content" placeholder="文章内容（支持```cpp代码块）"></textarea>
+    <input id="token" placeholder="GitHub Token（仅本地保存）">
+    <button onclick="publish()">发布到 GitHub Issues</button>
+    <button onclick="loadPosts()">刷新文章</button>
+  </div>
+
+  <div id="posts"></div>
 </div>
 
-<div id="list"></div>
-
 <script>
-const owner = "liuyio-awa";
-const repo  = "liuyio-awa.github.io";
+const USER = "liuyio-awa";
+const REPO = "liuyio-awa.github.io";
 
-// 页面加载读取本地缓存token
-window.onload = ()=>{
-  let t = localStorage.getItem("gh_issue_token");
-  if(t) document.getElementById("tokenInput").value = t;
-  loadIssues();
+window.onload = () => {
+  const t = localStorage.getItem("gh_token");
+  if (t) document.getElementById("token").value = t;
+  loadPosts();
 };
 
-// 发布文章到Issues
-async function postToIssue(){
-  let title = document.getElementById("title").value.trim();
-  let body  = document.getElementById("content").value.trim();
-  let token = document.getElementById("tokenInput").value.trim();
+async function publish() {
+  const title = document.getElementById("title").value.trim();
+  const body = document.getElementById("content").value.trim();
+  const token = document.getElementById("token").value.trim();
 
-  if(!title || !body) return alert("标题和内容不能为空");
-  if(!token) return alert("请填入GitHub Token");
+  if (!title || !body) return alert("标题和内容不能为空");
+  if (!token) return alert("请输入 GitHub Token");
 
-  // 本地存token，以后不用再填
-  localStorage.setItem("gh_issue_token", token);
+  localStorage.setItem("gh_token", token);
 
-  try{
-    let res = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues`,{
-      method:"POST",
-      headers:{
-        "Authorization":"token "+token,
-        "Content-Type":"application/json"
-      },
-      body:JSON.stringify({
-        title:title,
-        body:body
-      })
+  try {
+    const res = await fetch(`https://api.github.com/repos/${USER}/${REPO}/issues`, {
+      method: "POST",
+      headers: { Authorization: `token ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ title, body })
     });
-    if(res.ok){
-      alert("发布成功！已同步到GitHub Issues");
+
+    if (res.ok) {
+      alert("发布成功！已同步到 Issues");
       document.getElementById("title").value = "";
       document.getElementById("content").value = "";
-      loadIssues();
-    }else{
-      alert("发布失败，检查Token权限是否勾选repo");
+      loadPosts();
+    } else {
+      alert("发布失败：Token 无权限或已失效");
     }
-  }catch(e){
-    alert("网络/接口错误");
-    console.error(e);
+  } catch (e) {
+    alert("发布失败");
   }
 }
 
-// 加载Issues渲染为文章
-async function loadIssues(){
-  let list = document.getElementById("list");
-  list.innerHTML = "加载中...";
-  try{
-    let res = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues`);
-    let arr = await res.json();
-    if(!arr.length){
-      list.innerHTML = "<div class='post'>暂无文章，快去写一篇吧</div>";
-      return;
-    }
-    list.innerHTML = arr.map(item=>`
+async function loadPosts() {
+  const el = document.getElementById("posts");
+  el.innerHTML = "<div class='empty-posts'>加载中...</div>";
+
+  try {
+    const res = await fetch(`https://api.github.com/repos/${USER}/${REPO}/issues`);
+    const data = await res.json();
+
+    el.innerHTML = data.map(i => `
       <div class="post">
-        <h2>${escapeHtml(item.title)}</h2>
-        <div>${escapeHtml(item.body).replace(/\n/g,"<br>")}</div>
+        <h2>${escape(i.title)}</h2>
+        <div class="post-content">${md(i.body)}</div>
       </div>
     `).join("");
-  }catch(e){
-    list.innerHTML = "加载失败";
+
+    Prism.highlightAll();
+  } catch (e) {
+    el.innerHTML = "<div class='empty-posts'>加载失败</div>";
   }
 }
 
-function escapeHtml(s){
-  if(!s)return "";
-  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+function escape(s) {
+  if (!s) return "";
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function md(s) {
+  if (!s) return "";
+  s = s.replace(/```([\s\S]*?)```/g, (_, c) => {
+    const lines = c.split("\n");
+    const lang = lines[0] || "text";
+    const code = lines.slice(1).join("\n");
+    return `<pre><code class="language-${lang}">${escape(code)}</code></pre>`;
+  });
+  return s.replace(/\n/g, "<br>");
 }
 </script>
-
 </body>
 </html>
