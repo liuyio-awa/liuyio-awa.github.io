@@ -20,9 +20,9 @@
 
   <div class="post-editor">
     <input id="title" placeholder="文章标题">
-    <textarea id="content" placeholder="文章内容（支持代码块）"></textarea>
+    <textarea id="content" placeholder="文章内容（支持```cpp代码块）"></textarea>
     <input id="token" placeholder="GitHub Token（仅本地保存）">
-    <button onclick="publish()">发布到 Issues</button>
+    <button onclick="publish()">发布到 GitHub Issues</button>
     <button onclick="loadPosts()">刷新文章</button>
   </div>
 
@@ -32,35 +32,36 @@
 <script>
 const USER = "liuyio-awa";
 const REPO = "liuyio-awa.github.io";
-let token = "";
+let gToken = "";
 
 window.onload = () => {
-  token = localStorage.getItem("gh_token") || "";
-  document.getElementById("token").value = token;
+  gToken = localStorage.getItem("gh_token") || "";
+  document.getElementById("token").value = gToken;
   loadPosts();
 };
 
-// 发布文章 用token POST 不受跨域影响
+// 发布
 async function publish() {
   const title = document.getElementById("title").value.trim();
   const body = document.getElementById("content").value.trim();
   const tk = document.getElementById("token").value.trim();
 
   if (!title || !body) return alert("标题和内容不能为空");
-  if (!tk) return alert("请填写 GitHub Token");
+  if (!tk) return alert("请输入 GitHub Token");
 
-  token = tk;
-  localStorage.setItem("gh_token", token);
+  gToken = tk;
+  localStorage.setItem("gh_token", gToken);
 
   try {
     const res = await fetch(`https://api.github.com/repos/${USER}/${REPO}/issues`, {
       method: "POST",
       headers: {
-        "Authorization": "token " + token,
+        "Authorization": `token ${gToken}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({ title, body })
     });
+
     if (res.ok) {
       alert("发布成功！");
       document.getElementById("title").value = "";
@@ -74,50 +75,54 @@ async function publish() {
   }
 }
 
-// JSONP 回调，接收Issues数据
-function renderIssues(data) {
+// 重点：读接口也带Token，直接过CORS，不用绕
+async function loadPosts() {
   const el = document.getElementById("posts");
-  // 过滤掉PR，只留普通文章Issue
-  const list = data.filter(item => !item.pull_request);
+  el.innerHTML = "<div class='empty-posts'>加载中...</div>";
 
-  if (list.length === 0) {
-    el.innerHTML = "<div class='empty-posts'>暂无文章</div>";
+  if (!gToken) {
+    el.innerHTML = "<div class='empty-posts'>请先填入GitHub Token</div>";
     return;
   }
 
-  let html = "";
-  list.forEach(item => {
-    html += `
-    <div class="post">
-      <h2>${escapeHtml(item.title)}</h2>
-      <div class="post-content">${renderMd(item.body || "")}</div>
-    </div>
-    `;
-  });
-  el.innerHTML = html;
-  Prism.highlightAll();
-}
+  try {
+    // 读取也带Authorization，直接放行，无跨域
+    const res = await fetch(`https://api.github.com/repos/${USER}/${REPO}/issues`, {
+      headers: {
+        "Authorization": `token ${gToken}`
+      }
+    });
 
-// JSONP 加载 根治跨域
-function loadPosts() {
-  const el = document.getElementById("posts");
-  el.innerHTML = "<div class='empty-posts'>加载中...</div>";
-  // 移除旧脚本
-  const oldScript = document.getElementById("jsonpScript");
-  if (oldScript) oldScript.remove();
+    const data = await res.json();
+    // 过滤掉PR，只留文章
+    const list = data.filter(item => !item.pull_request);
 
-  // 新建JSONP脚本
-  const script = document.createElement("script");
-  script.id = "jsonpScript";
-  script.src = `https://api.github.com/repos/${USER}/${REPO}/issues?callback=renderIssues`;
-  document.body.appendChild(script);
+    if (list.length === 0) {
+      el.innerHTML = "<div class='empty-posts'>暂无文章</div>";
+      return;
+    }
+
+    let html = "";
+    list.forEach(item => {
+      html += `
+      <div class="post">
+        <h2>${escapeHtml(item.title)}</h2>
+        <div class="post-content">${renderMd(item.body || "")}</div>
+      </div>
+      `;
+    });
+
+    el.innerHTML = html;
+    Prism.highlightAll();
+  } catch (e) {
+    el.innerHTML = "<div class='empty-posts'>加载失败，请检查Token是否有效</div>";
+    console.error(e);
+  }
 }
 
 function escapeHtml(s) {
   if (!s) return "";
-  return s.replace(/&/g,"&amp;")
-          .replace(/</g,"&lt;")
-          .replace(/>/g,"&gt;");
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
 function renderMd(s) {
