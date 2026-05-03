@@ -26,7 +26,7 @@
     <button onclick="loadPosts()">刷新文章</button>
   </div>
 
-  <div id="posts"></div>
+  <div id="posts"><div class="empty-posts">加载中...</div></div>
 </div>
 
 <script>
@@ -76,17 +76,24 @@ async function loadPosts() {
   try {
     const res = await fetch(`https://api.github.com/repos/${USER}/${REPO}/issues`);
     const data = await res.json();
+    console.log("获取到的Issues:", data);
 
-    el.innerHTML = data.map(i => `
+    if (!data || data.length === 0) {
+      el.innerHTML = "<div class='empty-posts'>暂无文章</div>";
+      return;
+    }
+
+    el.innerHTML = data.map(item => `
       <div class="post">
-        <h2>${escape(i.title)}</h2>
-        <div class="post-content">${md(i.body)}</div>
+        <h2>${escape(item.title)}</h2>
+        <div class="post-content">${md(item.body || "")}</div>
       </div>
     `).join("");
 
     Prism.highlightAll();
   } catch (e) {
     el.innerHTML = "<div class='empty-posts'>加载失败</div>";
+    console.error(e);
   }
 }
 
@@ -97,11 +104,11 @@ function escape(s) {
 
 function md(s) {
   if (!s) return "";
-  s = s.replace(/```([\s\S]*?)```/g, (_, c) => {
-    const lines = c.split("\n");
+  s = s.replace(/```([\s\S]*?)```/g, (match, code) => {
+    const lines = code.split("\n");
     const lang = lines[0] || "text";
-    const code = lines.slice(1).join("\n");
-    return `<pre><code class="language-${lang}">${escape(code)}</code></pre>`;
+    const content = lines.slice(1).join("\n");
+    return `<pre><code class="language-${lang}">${escape(content)}</code></pre>`;
   });
   return s.replace(/\n/g, "<br>");
 }
