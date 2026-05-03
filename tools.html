@@ -21,4 +21,26 @@
     </nav>
   </header>
 
-  <div class
+  <div class="tool-container">
+    <div class="code-box">
+      <h3>标准代码 std</h3>
+      <textarea id="stdCode" placeholder="输入正确代码（C++）"></textarea>
+      <pre class="code-preview"><code class="language-cpp" id="stdPreview"></code></pre>
+    </div>
+    <div class="code-box">
+      <h3>你的代码</h3>
+      <textarea id="yourCode" placeholder="输入你的代码（C++）"></textarea>
+      <pre class="code-preview"><code class="language-cpp" id="yourPreview"></code></pre>
+    </div>
+    <div class="code-box">
+      <h3>随机数据生成</h3>
+      <textarea id="randCode" placeholder="输入数据生成代码（C++）"></textarea>
+      <pre class="code-preview"><code class="language-cpp" id="randPreview"></code></pre>
+    </div>
+    <button class="run-btn" onclick="startCheck()">开始对拍</button>
+    <div class="result" id="result"></div>
+  </div>
+</div>
+<script src="checker.js"></script>
+</body>
+</html>
