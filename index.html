@@ -40,4 +40,35 @@
     <textarea id="content" placeholder="写点什么...（支持代码高亮，用 ```语言 包裹代码，如 ```cpp）"></textarea>
     <!-- GitHub 存储需要填写仓库信息（替换成你的，添加配置提示） -->
     <div class="github-config" style="margin:10px 0; padding:10px; background:#2a2a2a; border-radius:6px;">
-      <p style="margin-bottom:5px; color:#7cc;">配置提示：仓库名填写 liuyio-awa.github.io，分支
+      <p style="margin-bottom:5px; color:#7cc;">配置提示：仓库名填写 liuyio-awa.github.io，分支默认main</p>
+      <input id="githubToken" placeholder="GitHub 个人访问令牌（仅用于操作你的仓库，不会上传）" style="margin-bottom:5px;">
+      <input id="githubRepo" placeholder="仓库名（如：yourname.github.io）" style="margin-bottom:5px;" value="liuyio-awa.github.io">
+      <input id="githubBranch" placeholder="分支（默认：main）" value="main">
+    </div>
+    <button onclick="savePostToGithub()">发布文章（保存到GitHub）</button>
+  </div>
+
+  <!-- 文章列表区 -->
+  <div id="posts" class="posts"></div>
+</div>
+
+<script>
+  // 初始化 Octokit（用于操作GitHub仓库）
+  let octokit;
+  // 全局变量：存储所有文章和标签
+  let allPosts = [];
+  let allTags = new Set();
+
+  // 页面加载时加载文章（从GitHub仓库读取），添加错误捕获优化
+  window.onload = async function() {
+    try {
+      await loadPostsFromGithub();
+      renderTags();
+    } catch (e) {
+      document.getElementById('posts').innerHTML = '<div class="empty-posts">页面初始化失败，请刷新重试！</div>';
+    }
+  };
+</script>
+<script src="script.js"></script>
+</body>
+</html>
