@@ -4,13 +4,17 @@
   <meta charset="UTF-8">
   <title>My Blog & Tools</title>
   <link rel="stylesheet" href="style.css">
-  <link href="https://cdn.bootcdn.net/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
-  <script src="https://cdn.bootcdn.net/ajax/libs/prism/1.29.0/prism.min.js"></script>
-  <script src="https://cdn.bootcdn.net/ajax/libs/prism/1.29.0/components/prism-cpp.min.js"></script>
-  <script src="https://cdn.bootcdn.net/ajax/libs/prism/1.29.0/components/prism-html.min.js"></script>
-  <script src="https://cdn.bootcdn.net/ajax/libs/prism/1.29.0/components/prism-css.min.js"></script>
-  <script src="https://cdn.bootcdn.net/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
-  <script src="https://cdn.bootcdn.net/ajax/libs/octokit/2.0.14/octokit.min.js"></script>
+  <!-- 代码高亮 Prism.js 样式（替换为稳定CDN，解决解析失败，优先选用官方源） -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
+  <!-- 代码高亮核心文件（稳定CDN，避免解析失败） -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <!-- 代码高亮语言支持（替换失效CDN，选用稳定兼容版本） -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-cpp.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-html.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-css.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+  <!-- GitHub 存储依赖（octokit，替换失效CDN，选用兼容稳定版本） -->
+  <script src="https://cdn.jsdelivr.net/npm/octokit@2.0.14/dist/index.min.js"></script>
 </head>
 <body>
 <div class="container">
@@ -22,40 +26,18 @@
     </nav>
   </header>
 
+  <!-- 标签筛选栏 -->
   <div class="tag-filter">
     <span>筛选标签：</span>
     <div id="tagList" class="tag-list"></div>
     <button onclick="showAllPosts()" class="filter-btn">全部</button>
   </div>
 
+  <!-- 文章编辑区（新增标签输入，优化GitHub配置提示） -->
   <div class="post-editor">
     <input id="title" placeholder="文章标题">
     <input id="tags" placeholder="文章标签（用逗号分隔，如：C++,博客,工具）">
-    <textarea id="content" placeholder="写点什么...（支持代码高亮，用 ```语言 包裹代码）"></textarea>
-    
-    <div style="background:#222; padding:10px; border-radius:6px; margin:10px 0;">
-      <input id="githubToken" placeholder="GitHub Token（仅本地保存，不上传）">
-    </div>
-
-    <button onclick="savePostToGithub()">发布文章</button>
-  </div>
-
-  <div id="posts" class="posts"></div>
-</div>
-
-<script>
-  let octokit;
-  let allPosts = [];
-  let allTags = new Set();
-  const REPO = "liuyio-awa.github.io";
-  const BRANCH = "main";
-
-  window.onload = async function () {
-    document.getElementById("githubToken").value = localStorage.getItem("ghToken") || "";
-    await loadPostsFromGithub();
-    renderTags();
-  };
-</script>
-<script src="script.js"></script>
-</body>
-</html>
+    <textarea id="content" placeholder="写点什么...（支持代码高亮，用 ```语言 包裹代码，如 ```cpp）"></textarea>
+    <!-- GitHub 存储需要填写仓库信息（替换成你的，添加配置提示） -->
+    <div class="github-config" style="margin:10px 0; padding:10px; background:#2a2a2a; border-radius:6px;">
+      <p style="margin-bottom:5px; color:#7cc;">配置提示：仓库名填写 liuyio-awa.github.io，分支
