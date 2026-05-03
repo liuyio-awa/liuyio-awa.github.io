@@ -2,73 +2,109 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>My Blog & Tools</title>
-  <link rel="stylesheet" href="style.css">
-  <!-- 代码高亮 Prism.js 样式（替换为稳定CDN，解决解析失败，优先选用官方源） -->
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
-  <!-- 代码高亮核心文件（稳定CDN，避免解析失败） -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
-  <!-- 代码高亮语言支持（替换失效CDN，选用稳定兼容版本） -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-cpp.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-html.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-css.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
-  <!-- GitHub 存储依赖（octokit，替换失效CDN，选用兼容稳定版本） -->
-  <script src="https://cdn.jsdelivr.net/npm/octokit@2.0.14/dist/index.min.js"></script>
+  <title>My Blog</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:#111;color:#eee;font-family:system-ui;max-width:900px;margin:0 auto;padding:20px;}
+    .edit-box{background:#222;padding:20px;border-radius:8px;margin-bottom:30px;}
+    input,textarea{width:100%;background:#333;border:1px:#444 solid;color:#fff;padding:10px;border-radius:6px;margin-bottom:10px;}
+    textarea{min-height:160px;}
+    button{background:#0066cc;border:none;color:#fff;padding:10px 18px;border-radius:6px;cursor:pointer;margin-right:8px;}
+    button:hover{background:#0055aa;}
+    .post{background:#1e1e1e;padding:18px;border-radius:8px;margin-bottom:15px;}
+    .post h2{color:#5af;margin-bottom:8px;}
+    .label{display:inline-block;background:#336;color:#8ff;padding:2px 8px;border-radius:4px;font-size:12px;margin-right:5px;}
+  </style>
 </head>
 <body>
-<div class="container">
-  <header>
-    <h1>My Blog</h1>
-    <nav>
-      <a href="index.html">博客</a>
-      <a href="tools.html">工具</a>
-    </nav>
-  </header>
 
-  <!-- 标签筛选栏 -->
-  <div class="tag-filter">
-    <span>筛选标签：</span>
-    <div id="tagList" class="tag-list"></div>
-    <button onclick="showAllPosts()" class="filter-btn">全部</button>
-  </div>
-
-  <!-- 文章编辑区（新增标签输入，优化GitHub配置提示） -->
-  <div class="post-editor">
-    <input id="title" placeholder="文章标题">
-    <input id="tags" placeholder="文章标签（用逗号分隔，如：C++,博客,工具）">
-    <textarea id="content" placeholder="写点什么...（支持代码高亮，用 ```语言 包裹代码，如 ```cpp）"></textarea>
-    <!-- GitHub 存储需要填写仓库信息（替换成你的，添加配置提示） -->
-    <div class="github-config" style="margin:10px 0; padding:10px; background:#2a2a2a; border-radius:6px;">
-      <p style="margin-bottom:5px; color:#7cc;">配置提示：仓库名填写 liuyio-awa.github.io，分支默认main</p>
-      <input id="githubToken" placeholder="GitHub 个人访问令牌（仅用于操作你的仓库，不会上传）" style="margin-bottom:5px;">
-      <input id="githubRepo" placeholder="仓库名（如：yourname.github.io）" style="margin-bottom:5px;" value="liuyio-awa.github.io">
-      <input id="githubBranch" placeholder="分支（默认：main）" value="main">
-    </div>
-    <button onclick="savePostToGithub()">发布文章（保存到GitHub）</button>
-  </div>
-
-  <!-- 文章列表区 -->
-  <div id="posts" class="posts"></div>
+<div class="edit-box">
+  <h3>在线写文章，自动发布到 GitHub Issues</h3>
+  <input id="title" placeholder="文章标题">
+  <textarea id="content" placeholder="文章内容，支持代码块"></textarea>
+  <input id="tokenInput" placeholder="GitHub Token 只填一次，本地保存">
+  <button onclick="postToIssue()">一键发布到 Issues</button>
+  <button onclick="loadIssues()">刷新文章</button>
 </div>
 
-<script>
-  // 初始化 Octokit（用于操作GitHub仓库）
-  let octokit;
-  // 全局变量：存储所有文章和标签
-  let allPosts = [];
-  let allTags = new Set();
+<div id="list"></div>
 
-  // 页面加载时加载文章（从GitHub仓库读取），添加错误捕获优化
-  window.onload = async function() {
-    try {
-      await loadPostsFromGithub();
-      renderTags();
-    } catch (e) {
-      document.getElementById('posts').innerHTML = '<div class="empty-posts">页面初始化失败，请刷新重试！</div>';
+<script>
+const owner = "liuyio-awa";
+const repo  = "liuyio-awa.github.io";
+
+// 页面加载读取本地缓存token
+window.onload = ()=>{
+  let t = localStorage.getItem("gh_issue_token");
+  if(t) document.getElementById("tokenInput").value = t;
+  loadIssues();
+};
+
+// 发布文章到Issues
+async function postToIssue(){
+  let title = document.getElementById("title").value.trim();
+  let body  = document.getElementById("content").value.trim();
+  let token = document.getElementById("tokenInput").value.trim();
+
+  if(!title || !body) return alert("标题和内容不能为空");
+  if(!token) return alert("请填入GitHub Token");
+
+  // 本地存token，以后不用再填
+  localStorage.setItem("gh_issue_token", token);
+
+  try{
+    let res = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues`,{
+      method:"POST",
+      headers:{
+        "Authorization":"token "+token,
+        "Content-Type":"application/json"
+      },
+      body:JSON.stringify({
+        title:title,
+        body:body
+      })
+    });
+    if(res.ok){
+      alert("发布成功！已同步到GitHub Issues");
+      document.getElementById("title").value = "";
+      document.getElementById("content").value = "";
+      loadIssues();
+    }else{
+      alert("发布失败，检查Token权限是否勾选repo");
     }
-  };
+  }catch(e){
+    alert("网络/接口错误");
+    console.error(e);
+  }
+}
+
+// 加载Issues渲染为文章
+async function loadIssues(){
+  let list = document.getElementById("list");
+  list.innerHTML = "加载中...";
+  try{
+    let res = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues`);
+    let arr = await res.json();
+    if(!arr.length){
+      list.innerHTML = "<div class='post'>暂无文章，快去写一篇吧</div>";
+      return;
+    }
+    list.innerHTML = arr.map(item=>`
+      <div class="post">
+        <h2>${escapeHtml(item.title)}</h2>
+        <div>${escapeHtml(item.body).replace(/\n/g,"<br>")}</div>
+      </div>
+    `).join("");
+  }catch(e){
+    list.innerHTML = "加载失败";
+  }
+}
+
+function escapeHtml(s){
+  if(!s)return "";
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
 </script>
-<script src="script.js"></script>
+
 </body>
 </html>
