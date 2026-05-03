@@ -50,8 +50,13 @@ int main() {
 }`;
 
   // 编译C++代码（适配修复后的Emscripten CDN）
-  const compiler = Module.cwrap('compileAndRun', 'string', ['string', 'string']);
-  return compiler(wrappedCode, input);
+  try {
+    const compiler = Module.cwrap('compileAndRun', 'string', ['string', 'string']);
+    return compiler(wrappedCode, input);
+  } catch (e) {
+    alert(`代码编译失败：${e.message}，请检查代码语法是否正确`);
+    return '';
+  }
 }
 
 // 在线对拍核心逻辑（修复后稳定运行）
@@ -85,7 +90,7 @@ async function startCheck() {
     res.innerText = "📦 生成随机数据...";
     const input = await compileAndRun(rand);
     if (!input) {
-      res.innerText = "❌ 错误：数据生成器未输出任何内容！";
+      res.innerText = "❌ 错误：数据生成器未输出任何内容！请检查数据生成代码";
       res.style.color = "#f44";
       return;
     }
@@ -153,4 +158,14 @@ int main() {
 
   // 初始化代码高亮预览（适配修复后的Prism.js）
   document.getElementById('stdPreview').innerText = stdExample;
-  document.getElementById('yourPreview').innerText
+  document.getElementById('yourPreview').innerText = yourExample;
+  document.getElementById('randPreview').innerText = randExample;
+  Prism.highlightAll();
+
+  // 预加载Emscripten环境（提升首次运行速度，适配修复后的CDN）
+  if (!window.Module) {
+    const script = document.createElement('script');
+    script.src = "https://cdn.jsdelivr.net/npm/emscripten@3.1.45/dist/emscripten.min.js";
+    document.body.appendChild(script);
+  }
+}
