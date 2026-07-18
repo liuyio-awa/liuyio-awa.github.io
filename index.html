@@ -3,638 +3,598 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GitHub JSON 留言板 · 暗黑 · Markdown+LaTeX</title>
+    <title>GitHub 留言板 · 暗黑 · Markdown+LaTeX</title>
 
-    <!-- ========== 外部依赖 ========== -->
-    <!-- Markdown 解析 -->
+    <!-- ===== 外部依赖 ===== -->
+    <!-- 用最新的稳定 CDN -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-
-    <!-- KaTeX 样式 & 核心库 & 自动渲染插件 -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/contrib/auto-render.min.js"></script>
-
-    <!-- Octokit (GitHub REST API) -->
     <script src="https://cdn.jsdelivr.net/npm/@octokit/rest@20.0.2/dist-bundle/octokit.min.js"></script>
 
     <style>
-        /* ===== 全局暗色主题 ===== */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        /* ===== 完全相同的暗色主题 ===== */
+        * { margin:0; padding:0; box-sizing:border-box; }
         :root {
-            --bg-body: #0d1117;
-            --bg-card: #161b22;
-            --bg-input: #0d1117;
-            --border-color: #30363d;
-            --text-primary: #c9d1d9;
-            --text-secondary: #8b949e;
-            --text-muted: #484f58;
-            --accent: #58a6ff;
-            --accent-hover: #79c0ff;
-            --btn-green: #238636;
-            --btn-green-hover: #2ea043;
-            --btn-danger: #da3633;
-            --btn-danger-hover: #f85149;
-            --shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-            --radius: 12px;
-            --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            --bg-body:#0d1117; --bg-card:#161b22; --bg-input:#0d1117;
+            --border-color:#30363d; --text-primary:#c9d1d9; --text-secondary:#8b949e;
+            --text-muted:#484f58; --accent:#58a6ff; --accent-hover:#79c0ff;
+            --btn-green:#238636; --btn-green-hover:#2ea043; --btn-danger:#da3633;
+            --btn-danger-hover:#f85149; --shadow:0 8px 32px rgba(0,0,0,0.6);
+            --radius:12px; --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
         }
-        body {
-            font-family: var(--font);
-            background: var(--bg-body);
-            color: var(--text-primary);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 16px;
-            margin: 0;
-        }
-        .app {
-            width: 100%;
-            max-width: 860px;
-            height: 95vh;
-            max-height: 820px;
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
+        body { font-family:var(--font); background:var(--bg-body); color:var(--text-primary); min-height:100vh; display:flex; justify-content:center; align-items:center; padding:16px; margin:0; }
+        .app { width:100%; max-width:860px; height:95vh; max-height:820px; background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--radius); box-shadow:var(--shadow); display:flex; flex-direction:column; overflow:hidden; }
+        .header { padding:14px 20px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; flex-shrink:0; flex-wrap:wrap; gap:8px; background:var(--bg-card); }
+        .header h1 { font-size:18px; font-weight:600; display:flex; align-items:center; gap:8px; }
+        .header h1 small { font-size:11px; font-weight:400; color:var(--text-muted); background:var(--border-color); padding:0 10px; border-radius:12px; }
+        .header-actions { display:flex; gap:8px; flex-wrap:wrap; }
+        .header-actions button { background:transparent; border:1px solid var(--border-color); color:var(--text-secondary); padding:5px 14px; border-radius:20px; font-size:13px; cursor:pointer; transition:all .2s; }
+        .header-actions button:hover { background:var(--border-color); color:var(--text-primary); }
+        .header-actions .config-btn { border-color:var(--accent); color:var(--accent); }
+        .header-actions .config-btn:hover { background:var(--accent); color:#0d1117; }
 
-        /* 顶栏 */
-        .header {
-            padding: 14px 20px;
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-shrink: 0;
-            flex-wrap: wrap;
-            gap: 8px;
-            background: var(--bg-card);
-        }
-        .header h1 {
-            font-size: 18px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .header h1 small {
-            font-size: 11px;
-            font-weight: 400;
-            color: var(--text-muted);
-            background: var(--border-color);
-            padding: 0 10px;
-            border-radius: 12px;
-        }
-        .header-actions {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-        .header-actions button {
-            background: transparent;
-            border: 1px solid var(--border-color);
-            color: var(--text-secondary);
-            padding: 5px 14px;
-            border-radius: 20px;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .header-actions button:hover {
-            background: var(--border-color);
-            color: var(--text-primary);
-        }
-        .header-actions .config-btn {
-            border-color: var(--accent);
-            color: var(--accent);
-        }
-        .header-actions .config-btn:hover {
-            background: var(--accent);
-            color: #0d1117;
-        }
+        .announcement-bar { background:#1f2937; border-bottom:2px solid var(--accent); padding:8px 20px; display:none; align-items:center; gap:10px; flex-shrink:0; font-size:14px; }
+        .announcement-bar.show { display:flex; }
+        .announcement-bar .pin-icon { color:var(--accent); font-size:18px; }
+        .announcement-bar .announce-content { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .announcement-bar .close-announce { cursor:pointer; color:var(--text-muted); background:none; border:none; font-size:18px; padding:0 4px; }
 
-        /* 公告栏 */
-        .announcement-bar {
-            background: #1f2937;
-            border-bottom: 2px solid var(--accent);
-            padding: 8px 20px;
-            display: none;
-            align-items: center;
-            gap: 10px;
-            flex-shrink: 0;
-            font-size: 14px;
-        }
-        .announcement-bar.show {
-            display: flex;
-        }
-        .announcement-bar .pin-icon {
-            color: var(--accent);
-            font-size: 18px;
-        }
-        .announcement-bar .announce-content {
-            flex: 1;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        .announcement-bar .close-announce {
-            cursor: pointer;
-            color: var(--text-muted);
-            background: none;
-            border: none;
-            font-size: 18px;
-            padding: 0 4px;
-        }
-        .announcement-bar .close-announce:hover {
-            color: var(--text-primary);
-        }
+        .search-bar { padding:8px 20px; background:var(--bg-body); border-bottom:1px solid var(--border-color); display:flex; gap:10px; align-items:center; flex-shrink:0; }
+        .search-bar input { flex:1; background:var(--bg-input); border:1px solid var(--border-color); border-radius:20px; padding:6px 16px; color:var(--text-primary); font-size:14px; outline:none; }
+        .search-bar input:focus { border-color:var(--accent); }
+        .search-bar input::placeholder { color:var(--text-muted); }
+        .search-bar .clear-search { background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:16px; padding:0 4px; }
 
-        /* 搜索栏 */
-        .search-bar {
-            padding: 8px 20px;
-            background: var(--bg-body);
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            flex-shrink: 0;
-        }
-        .search-bar input {
-            flex: 1;
-            background: var(--bg-input);
-            border: 1px solid var(--border-color);
-            border-radius: 20px;
-            padding: 6px 16px;
-            color: var(--text-primary);
-            font-size: 14px;
-            outline: none;
-            transition: border 0.2s;
-        }
-        .search-bar input:focus {
-            border-color: var(--accent);
-        }
-        .search-bar input::placeholder {
-            color: var(--text-muted);
-        }
-        .search-bar .clear-search {
-            background: none;
-            border: none;
-            color: var(--text-muted);
-            cursor: pointer;
-            font-size: 16px;
-            padding: 0 4px;
-        }
-        .search-bar .clear-search:hover {
-            color: var(--text-primary);
-        }
+        .message-list { flex:1; overflow-y:auto; padding:16px 20px; display:flex; flex-direction:column; gap:12px; background:var(--bg-body); scroll-behavior:smooth; }
+        .msg { display:flex; gap:12px; align-items:flex-start; animation:fadeUp .25s ease; }
+        .msg .avatar { width:36px; height:36px; border-radius:50%; background:var(--border-color); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; flex-shrink:0; background:#2d333b; color:var(--text-primary); text-transform:uppercase; }
+        .msg .bubble { flex:1; background:var(--bg-card); padding:10px 14px; border-radius:var(--radius); border:1px solid var(--border-color); word-break:break-word; }
+        .msg .bubble .meta { display:flex; gap:12px; font-size:13px; color:var(--text-secondary); margin-bottom:4px; flex-wrap:wrap; }
+        .msg .bubble .meta .author { font-weight:600; color:var(--text-primary); }
+        .msg .bubble .meta .time { color:var(--text-muted); }
+        .msg .bubble .meta .badge-pin { background:var(--accent); color:#0d1117; font-size:10px; font-weight:700; padding:0 8px; border-radius:10px; }
+        .msg .bubble .content { font-size:15px; line-height:1.6; }
+        .msg .bubble .content p { margin:0 0 6px 0; }
+        .msg .bubble .content p:last-child { margin-bottom:0; }
+        .msg .bubble .content .katex .mathnormal { color:var(--text-primary); }
+        .msg .bubble .content .katex .mord { color:var(--text-primary); }
+        .msg .bubble .content code { background:#1c2128; padding:.2em .4em; border-radius:4px; font-size:.9em; color:#f0f6fc; }
+        .msg .bubble .content pre { background:#1c2128; padding:12px; border-radius:8px; overflow-x:auto; margin:6px 0; }
+        .msg .bubble .content blockquote { border-left:3px solid var(--accent); padding-left:12px; color:var(--text-secondary); margin:6px 0; }
+        .msg .bubble .actions { margin-top:8px; display:flex; gap:8px; justify-content:flex-end; border-top:1px solid var(--border-color); padding-top:6px; }
+        .msg .bubble .actions button { background:transparent; border:none; color:var(--text-muted); font-size:12px; cursor:pointer; padding:2px 8px; border-radius:4px; transition:.2s; }
+        .msg .bubble .actions .del-btn:hover { background:var(--btn-danger); color:#fff; }
+        .empty-state { text-align:center; padding:40px 0; color:var(--text-muted); font-size:15px; }
 
-        /* 消息列表 */
-        .message-list {
-            flex: 1;
-            overflow-y: auto;
-            padding: 16px 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            background: var(--bg-body);
-            scroll-behavior: smooth;
-        }
-        .msg {
-            display: flex;
-            gap: 12px;
-            align-items: flex-start;
-            animation: fadeUp 0.25s ease;
-        }
-        .msg .avatar {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            background: var(--border-color);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 14px;
-            flex-shrink: 0;
-            background: #2d333b;
-            color: var(--text-primary);
-            text-transform: uppercase;
-        }
-        .msg .bubble {
-            flex: 1;
-            background: var(--bg-card);
-            padding: 10px 14px;
-            border-radius: var(--radius);
-            border: 1px solid var(--border-color);
-            word-break: break-word;
-        }
-        .msg .bubble .meta {
-            display: flex;
-            gap: 12px;
-            font-size: 13px;
-            color: var(--text-secondary);
-            margin-bottom: 4px;
-            flex-wrap: wrap;
-        }
-        .msg .bubble .meta .author {
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-        .msg .bubble .meta .time {
-            color: var(--text-muted);
-        }
-        .msg .bubble .meta .badge-pin {
-            background: var(--accent);
-            color: #0d1117;
-            font-size: 10px;
-            font-weight: 700;
-            padding: 0 8px;
-            border-radius: 10px;
-        }
-        .msg .bubble .content {
-            font-size: 15px;
-            line-height: 1.6;
-        }
-        .msg .bubble .content p {
-            margin: 0 0 6px 0;
-        }
-        .msg .bubble .content p:last-child {
-            margin-bottom: 0;
-        }
-        /* KaTeX 暗色适配 */
-        .msg .bubble .content .katex .mathnormal {
-            color: var(--text-primary);
-        }
-        .msg .bubble .content .katex .mord {
-            color: var(--text-primary);
-        }
-        .msg .bubble .content code {
-            background: #1c2128;
-            padding: 0.2em 0.4em;
-            border-radius: 4px;
-            font-size: 0.9em;
-            color: #f0f6fc;
-        }
-        .msg .bubble .content pre {
-            background: #1c2128;
-            padding: 12px;
-            border-radius: 8px;
-            overflow-x: auto;
-            margin: 6px 0;
-        }
-        .msg .bubble .content blockquote {
-            border-left: 3px solid var(--accent);
-            padding-left: 12px;
-            color: var(--text-secondary);
-            margin: 6px 0;
-        }
-        .msg .bubble .actions {
-            margin-top: 8px;
-            display: flex;
-            gap: 8px;
-            justify-content: flex-end;
-            border-top: 1px solid var(--border-color);
-            padding-top: 6px;
-        }
-        .msg .bubble .actions button {
-            background: transparent;
-            border: none;
-            color: var(--text-muted);
-            font-size: 12px;
-            cursor: pointer;
-            padding: 2px 8px;
-            border-radius: 4px;
-            transition: 0.2s;
-        }
-        .msg .bubble .actions .del-btn:hover {
-            background: var(--btn-danger);
-            color: #fff;
-        }
-        .empty-state {
-            text-align: center;
-            padding: 40px 0;
-            color: var(--text-muted);
-            font-size: 15px;
-        }
+        .input-area { padding:12px 20px 16px; border-top:1px solid var(--border-color); background:var(--bg-card); display:flex; gap:10px; align-items:flex-end; flex-shrink:0; flex-wrap:wrap; }
+        .input-area .input-group { flex:1; display:flex; flex-direction:column; gap:6px; min-width:0; }
+        .input-area .input-group .name-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+        .input-area .input-group .name-row input { flex:1; background:var(--bg-input); border:1px solid var(--border-color); border-radius:8px; padding:6px 12px; color:var(--text-primary); font-size:13px; outline:none; min-width:60px; }
+        .input-area .input-group .name-row input:focus { border-color:var(--accent); }
+        .input-area .input-group textarea { width:100%; background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius); padding:10px 14px; color:var(--text-primary); font-size:15px; resize:none; font-family:var(--font); outline:none; min-height:44px; max-height:120px; line-height:1.5; }
+        .input-area .input-group textarea:focus { border-color:var(--accent); }
+        .input-area .input-group textarea::placeholder { color:var(--text-muted); }
+        .input-area .send-btn { background:var(--btn-green); border:none; color:#fff; font-weight:600; padding:10px 24px; border-radius:var(--radius); cursor:pointer; font-size:15px; transition:background .2s; height:44px; white-space:nowrap; }
+        .input-area .send-btn:hover { background:var(--btn-green-hover); }
+        .input-area .send-btn:disabled { opacity:.4; cursor:not-allowed; }
+        .pin-toggle { display:flex; align-items:center; gap:6px; color:var(--text-secondary); font-size:13px; cursor:pointer; padding:4px 8px; border-radius:6px; border:1px solid transparent; transition:.2s; white-space:nowrap; }
+        .pin-toggle:hover { background:var(--border-color); }
+        .pin-toggle input[type="checkbox"] { accent-color:var(--accent); width:16px; height:16px; cursor:pointer; }
 
-        /* 底部输入 */
-        .input-area {
-            padding: 12px 20px 16px;
-            border-top: 1px solid var(--border-color);
-            background: var(--bg-card);
-            display: flex;
-            gap: 10px;
-            align-items: flex-end;
-            flex-shrink: 0;
-            flex-wrap: wrap;
-        }
-        .input-area .input-group {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            min-width: 0;
-        }
-        .input-area .input-group .name-row {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        .input-area .input-group .name-row input {
-            flex: 1;
-            background: var(--bg-input);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 6px 12px;
-            color: var(--text-primary);
-            font-size: 13px;
-            outline: none;
-            transition: border 0.2s;
-            min-width: 60px;
-        }
-        .input-area .input-group .name-row input:focus {
-            border-color: var(--accent);
-        }
-        .input-area .input-group textarea {
-            width: 100%;
-            background: var(--bg-input);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius);
-            padding: 10px 14px;
-            color: var(--text-primary);
-            font-size: 15px;
-            resize: none;
-            font-family: var(--font);
-            outline: none;
-            transition: border 0.2s;
-            min-height: 44px;
-            max-height: 120px;
-            line-height: 1.5;
-        }
-        .input-area .input-group textarea:focus {
-            border-color: var(--accent);
-        }
-        .input-area .input-group textarea::placeholder {
-            color: var(--text-muted);
-        }
-        .input-area .send-btn {
-            background: var(--btn-green);
-            border: none;
-            color: #fff;
-            font-weight: 600;
-            padding: 10px 24px;
-            border-radius: var(--radius);
-            cursor: pointer;
-            font-size: 15px;
-            transition: background 0.2s;
-            height: 44px;
-            white-space: nowrap;
-        }
-        .input-area .send-btn:hover {
-            background: var(--btn-green-hover);
-        }
-        .input-area .send-btn:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-        }
-        .pin-toggle {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            color: var(--text-secondary);
-            font-size: 13px;
-            cursor: pointer;
-            padding: 4px 8px;
-            border-radius: 6px;
-            border: 1px solid transparent;
-            transition: 0.2s;
-            white-space: nowrap;
-        }
-        .pin-toggle:hover {
-            background: var(--border-color);
-        }
-        .pin-toggle input[type="checkbox"] {
-            accent-color: var(--accent);
-            width: 16px;
-            height: 16px;
-            cursor: pointer;
-        }
+        .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); backdrop-filter:blur(6px); justify-content:center; align-items:center; z-index:999; }
+        .modal-overlay.active { display:flex; }
+        .modal { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--radius); padding:28px 32px; max-width:480px; width:90%; box-shadow:var(--shadow); }
+        .modal h2 { font-size:20px; margin-bottom:6px; }
+        .modal .sub { color:var(--text-secondary); font-size:14px; margin-bottom:16px; }
+        .modal label { display:block; font-size:14px; font-weight:500; color:var(--text-secondary); margin-top:14px; margin-bottom:4px; }
+        .modal input { width:100%; padding:10px 14px; background:var(--bg-input); border:1px solid var(--border-color); border-radius:8px; color:var(--text-primary); font-size:15px; outline:none; }
+        .modal input:focus { border-color:var(--accent); }
+        .modal .hint { font-size:12px; color:var(--text-muted); margin-top:4px; }
+        .modal .actions { display:flex; gap:12px; margin-top:24px; justify-content:flex-end; }
+        .modal .actions button { padding:8px 20px; border-radius:8px; border:none; font-size:14px; font-weight:500; cursor:pointer; transition:background .2s; }
+        .modal .actions .btn-primary { background:var(--accent); color:#0d1117; }
+        .modal .actions .btn-primary:hover { background:var(--accent-hover); }
+        .modal .actions .btn-secondary { background:var(--border-color); color:var(--text-primary); }
+        .modal .actions .btn-secondary:hover { background:#484f58; }
 
-        /* 配置模态框 */
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.75);
-            backdrop-filter: blur(6px);
-            justify-content: center;
-            align-items: center;
-            z-index: 999;
-        }
-        .modal-overlay.active {
-            display: flex;
-        }
-        .modal {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius);
-            padding: 28px 32px;
-            max-width: 480px;
-            width: 90%;
-            box-shadow: var(--shadow);
-        }
-        .modal h2 {
-            font-size: 20px;
-            margin-bottom: 6px;
-        }
-        .modal .sub {
-            color: var(--text-secondary);
-            font-size: 14px;
-            margin-bottom: 16px;
-        }
-        .modal label {
-            display: block;
-            font-size: 14px;
-            font-weight: 500;
-            color: var(--text-secondary);
-            margin-top: 14px;
-            margin-bottom: 4px;
-        }
-        .modal input {
-            width: 100%;
-            padding: 10px 14px;
-            background: var(--bg-input);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            color: var(--text-primary);
-            font-size: 15px;
-            outline: none;
-            transition: border 0.2s;
-        }
-        .modal input:focus {
-            border-color: var(--accent);
-        }
-        .modal .hint {
-            font-size: 12px;
-            color: var(--text-muted);
-            margin-top: 4px;
-        }
-        .modal .actions {
-            display: flex;
-            gap: 12px;
-            margin-top: 24px;
-            justify-content: flex-end;
-        }
-        .modal .actions button {
-            padding: 8px 20px;
-            border-radius: 8px;
-            border: none;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        .modal .actions .btn-primary {
-            background: var(--accent);
-            color: #0d1117;
-        }
-        .modal .actions .btn-primary:hover {
-            background: var(--accent-hover);
-        }
-        .modal .actions .btn-secondary {
-            background: var(--border-color);
-            color: var(--text-primary);
-        }
-        .modal .actions .btn-secondary:hover {
-            background: #484f58;
-        }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+        .message-list::-webkit-scrollbar { width:6px; }
+        .message-list::-webkit-scrollbar-track { background:transparent; }
+        .message-list::-webkit-scrollbar-thumb { background:var(--border-color); border-radius:8px; }
+        .message-list::-webkit-scrollbar-thumb:hover { background:#484f58; }
 
-        @keyframes fadeUp {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        .message-list::-webkit-scrollbar {
-            width: 6px;
-        }
-        .message-list::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        .message-list::-webkit-scrollbar-thumb {
-            background: var(--border-color);
-            border-radius: 8px;
-        }
-        .message-list::-webkit-scrollbar-thumb:hover {
-            background: #484f58;
-        }
-
-        @media (max-width: 600px) {
-            .app {
-                height: 100vh;
-                max-height: none;
-                border-radius: 0;
-                border: none;
-            }
-            .header h1 {
-                font-size: 16px;
-            }
-            .input-area {
-                padding: 10px 12px 12px;
-            }
-            .input-area .send-btn {
-                padding: 8px 16px;
-                font-size: 14px;
-                height: 40px;
-            }
-            .modal {
-                padding: 20px;
-            }
-            .announcement-bar {
-                font-size: 13px;
-                padding: 6px 16px;
-            }
+        @media (max-width:600px) {
+            .app { height:100vh; max-height:none; border-radius:0; border:none; }
+            .header h1 { font-size:16px; }
+            .input-area { padding:10px 12px 12px; }
+            .input-area .send-btn { padding:8px 16px; font-size:14px; height:40px; }
+            .modal { padding:20px; }
+            .announcement-bar { font-size:13px; padding:6px 16px; }
         }
     </style>
 </head>
 <body>
 
-    <div class="app" id="app">
-
-        <!-- 顶栏 -->
-        <header class="header">
-            <h1>💬 留言板 <small>Markdown + LaTeX</small></h1>
-            <div class="header-actions">
-                <button id="refreshBtn">🔄 刷新</button>
-                <button class="config-btn" id="configBtn">⚙️ 配置</button>
+<div class="app" id="app">
+    <header class="header">
+        <h1>💬 留言板 <small>Markdown + LaTeX</small></h1>
+        <div class="header-actions">
+            <button id="refreshBtn">🔄 刷新</button>
+            <button class="config-btn" id="configBtn">⚙️ 配置</button>
+        </div>
+    </header>
+    <div class="announcement-bar" id="announceBar">
+        <span class="pin-icon">📌</span>
+        <span class="announce-content" id="announceContent"></span>
+        <button class="close-announce" id="closeAnnounce">✕</button>
+    </div>
+    <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="🔍 搜索消息内容 / 昵称..." />
+        <button class="clear-search" id="clearSearch">✕</button>
+    </div>
+    <div class="message-list" id="messageList">
+        <div class="empty-state">💡 点击「配置」连接仓库，开始留言</div>
+    </div>
+    <div class="input-area">
+        <div class="input-group">
+            <div class="name-row">
+                <input type="text" id="nickInput" placeholder="昵称" maxlength="20" value="访客" />
+                <label class="pin-toggle">
+                    <input type="checkbox" id="pinCheckbox" /> 📌 置顶
+                </label>
             </div>
-        </header>
-
-        <!-- 公告栏 -->
-        <div class="announcement-bar" id="announceBar">
-            <span class="pin-icon">📌</span>
-            <span class="announce-content" id="announceContent"></span>
-            <button class="close-announce" id="closeAnnounce">✕</button>
+            <textarea id="msgInput" rows="1" placeholder="支持 Markdown &amp; LaTeX ( $$ 块级 $$ 或 \( 行内 \) )"></textarea>
         </div>
+        <button class="send-btn" id="sendBtn">发送</button>
+    </div>
+</div>
 
-        <!-- 搜索栏 -->
-        <div class="search-bar">
-            <input type="text" id="searchInput" placeholder="🔍 搜索消息内容 / 昵称..." />
-            <button class="clear-search" id="clearSearch">✕</button>
-        </div>
-
-        <!-- 消息列表 -->
-        <div class="message-list" id="messageList">
-            <div class="empty-state">💡 点击「配置」连接仓库，开始留言</div>
-        </div>
-
-        <!-- 底部输入 -->
-        <div class="input-area">
-            <div class="input-group">
-                <div class="name-row">
-                    <input type="text" id="nickInput" placeholder="昵称" maxlength="20" value="访客" />
-                    <label class="pin-toggle">
-                        <input type="checkbox" id="pinCheckbox" /> 📌 置顶
-                    </label>
-                </div>
-                <textarea id="msgInput" rows="1" placeholder="支持 Markdown &amp; LaTeX ( $$ 块级公式 $$ 或 \( 行内公式 \) )"></textarea>
-            </div>
-            <button class="send-btn" id="sendBtn">发送</button>
+<!-- 配置模态框 -->
+<div class="modal-overlay" id="configModal">
+    <div class="modal">
+        <h2>⚙️ 仓库配置</h2>
+        <div class="sub">数据存储在 <strong>liuyio-awa/liuyio-awa.github.io</strong> 的 <code>posts.json</code></div>
+        <label>GitHub Token</label>
+        <input type="password" id="tokenInput" placeholder="ghp_xxxx..." />
+        <div class="hint">需勾选 <strong>repo</strong> 全部权限</div>
+        <label>默认昵称</label>
+        <input type="text" id="defaultNickInput" placeholder="访客" />
+        <div class="actions">
+            <button class="btn-secondary" id="modalCancel">取消</button>
+            <button class="btn-primary" id="modalSave">保存并连接</button>
         </div>
     </div>
+</div>
 
-    <!-- 配置模态框 -->
-    <div class="modal-overlay" id="configModal">
-        <div class="modal">
-            <h2>⚙️ 仓库配置</h2>
-            <div class="sub">数据存储在 <strong>liuyio-awa/liuyio-awa.github.io</strong> 的 <code>posts.json</code></div>
-            <label>GitHub Token</label>
-            <input type="password" id="tokenInput" placeholder="ghp_xxxx..." />
-            <div class="hint">需勾选 <strong>repo</strong> 全部权限</div>
-            <label>默认昵称</label>
-            <input type="text" id="defaultNickInput" placeholder="访客" />
-            <div class="actions">
-                <button class="btn-secondary" id="modalCancel">取消</button>
-                <button class="btn-primary" id="modalSave">保存并连接</button>
-            </div>
-        </div>
-    </div>
+<!-- ========== 所有 JavaScript 放在最后，确保 DOM 就绪 ========== -->
+<script>
+    (function() {
+        'use strict';
 
-    <!-- ========== 加载分离的 JavaScript ========== -->
-    <script src="script.js"></script>
+        // -------------------- 调试日志 --------------------
+        console.log('🚀 留言板脚本开始加载...');
+
+        // -------------------- 获取 DOM 元素 --------------------
+        const messageList = document.getElementById('messageList');
+        const nickInput = document.getElementById('nickInput');
+        const msgInput = document.getElementById('msgInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const configBtn = document.getElementById('configBtn');
+        const configModal = document.getElementById('configModal');
+        const tokenInput = document.getElementById('tokenInput');
+        const defaultNickInput = document.getElementById('defaultNickInput');
+        const modalSave = document.getElementById('modalSave');
+        const modalCancel = document.getElementById('modalCancel');
+        const searchInput = document.getElementById('searchInput');
+        const clearSearch = document.getElementById('clearSearch');
+        const pinCheckbox = document.getElementById('pinCheckbox');
+        const announceBar = document.getElementById('announceBar');
+        const announceContent = document.getElementById('announceContent');
+        const closeAnnounce = document.getElementById('closeAnnounce');
+
+        // -------------------- 固定配置 --------------------
+        const OWNER = 'liuyio-awa';
+        const REPO = 'liuyio-awa.github.io';
+        const PATH = 'posts.json';
+        const BRANCH = 'main';
+
+        // -------------------- 状态 --------------------
+        let token = '';
+        let allMessages = [];
+        let pollingTimer = null;
+        let isReady = false;   // 标记依赖是否加载完成
+
+        // -------------------- 工具函数 (不依赖外部库) --------------------
+        function utf8ToBase64(str) {
+            return btoa(unescape(encodeURIComponent(str)));
+        }
+        function base64ToUtf8(base64) {
+            return decodeURIComponent(escape(atob(base64)));
+        }
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        function generateId() {
+            return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
+        }
+        function formatTime(iso) {
+            try { return new Date(iso).toLocaleString('zh-CN', { hour12: false }); } catch (_) { return iso; }
+        }
+        function getColor(name) {
+            let h = 0;
+            for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+            const colors = ['#f44336','#e91e63','#9c27b0','#673ab7','#3f51b5','#2196f3','#03a9f4','#00bcd4','#009688','#4caf50','#8bc34a','#cddc39','#ffeb3b','#ffc107','#ff9800','#ff5722'];
+            return colors[Math.abs(h) % colors.length];
+        }
+
+        // -------------------- 核心功能 (依赖 Octokit) --------------------
+        async function fetchMessages() {
+            console.log('📥 fetchMessages 被调用, token=', token ? '已设置' : '未设置');
+            if (!token) {
+                messageList.innerHTML = `<div class="empty-state">⚠️ 请先点击「配置」设置 GitHub Token</div>`;
+                return [];
+            }
+            if (typeof Octokit === 'undefined') {
+                console.error('❌ Octokit 未定义');
+                messageList.innerHTML = `<div class="empty-state">❌ Octokit 库未加载，请检查网络或刷新页面</div>`;
+                return [];
+            }
+            try {
+                const octokit = new Octokit({ auth: token });
+                let resp;
+                try {
+                    resp = await octokit.rest.repos.getContent({ owner: OWNER, repo: REPO, path: PATH, ref: BRANCH });
+                } catch (err) {
+                    if (err.status === 404) {
+                        console.log('📄 posts.json 不存在，自动创建...');
+                        await octokit.rest.repos.createOrUpdateFileContents({
+                            owner: OWNER, repo: REPO, path: PATH,
+                            message: '初始化留言板', content: utf8ToBase64('[]'), branch: BRANCH
+                        });
+                        resp = await octokit.rest.repos.getContent({ owner: OWNER, repo: REPO, path: PATH, ref: BRANCH });
+                    } else throw err;
+                }
+                const raw = base64ToUtf8(resp.data.content);
+                const data = JSON.parse(raw);
+                console.log(`✅ 成功读取 ${data.length} 条消息`);
+                return data;
+            } catch (err) {
+                console.error('❌ 读取失败:', err);
+                if (err.status === 401) {
+                    messageList.innerHTML = `<div class="empty-state">❌ Token 无效或权限不足，请重新配置</div>`;
+                } else {
+                    messageList.innerHTML = `<div class="empty-state">❌ 读取失败：${escapeHtml(err.message)}</div>`;
+                }
+                return [];
+            }
+        }
+
+        async function saveMessages(messages) {
+            if (!token) throw new Error('未配置 Token');
+            if (typeof Octokit === 'undefined') throw new Error('Octokit 未加载');
+            const octokit = new Octokit({ auth: token });
+            let sha;
+            try {
+                const resp = await octokit.rest.repos.getContent({ owner: OWNER, repo: REPO, path: PATH, ref: BRANCH });
+                sha = resp.data.sha;
+            } catch (err) { if (err.status !== 404) throw err; }
+            await octokit.rest.repos.createOrUpdateFileContents({
+                owner: OWNER, repo: REPO, path: PATH,
+                message: `更新留言 (${messages.length} 条)`,
+                content: utf8ToBase64(JSON.stringify(messages, null, 2)),
+                branch: BRANCH, sha: sha || undefined
+            });
+            console.log('💾 保存成功');
+        }
+
+        // -------------------- 渲染 (依赖 marked 和 KaTeX) --------------------
+        function renderMessages() {
+            console.log('🖌️ 渲染消息列表, 共', allMessages.length, '条');
+            const container = messageList;
+            let filtered = [...allMessages];
+            const keyword = searchInput.value.trim().toLowerCase();
+            if (keyword) {
+                filtered = filtered.filter(m =>
+                    m.content.toLowerCase().includes(keyword) ||
+                    m.nickname.toLowerCase().includes(keyword)
+                );
+            }
+            filtered.sort((a, b) => {
+                if (a.isPinned && !b.isPinned) return -1;
+                if (!a.isPinned && b.isPinned) return 1;
+                return new Date(b.timestamp) - new Date(a.timestamp);
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="empty-state">📭 暂无消息，发一条吧！</div>`;
+                return;
+            }
+
+            let html = '';
+            filtered.forEach(msg => {
+                const avatarLetter = (msg.nickname || '?').charAt(0).toUpperCase();
+                const color = getColor(msg.nickname || '匿名');
+                const time = formatTime(msg.timestamp);
+                let contentHtml = msg.content || '';
+                if (typeof marked !== 'undefined') {
+                    contentHtml = marked.parse(contentHtml);
+                } else {
+                    contentHtml = escapeHtml(contentHtml).replace(/\n/g, '<br>');
+                }
+                html += `
+                    <div class="msg" data-id="${escapeHtml(msg.id)}">
+                        <div class="avatar" style="background:${color};">${escapeHtml(avatarLetter)}</div>
+                        <div class="bubble">
+                            <div class="meta">
+                                <span class="author">${escapeHtml(msg.nickname || '匿名')}</span>
+                                <span class="time">${escapeHtml(time)}</span>
+                                ${msg.isPinned ? '<span class="badge-pin">📌 置顶</span>' : ''}
+                            </div>
+                            <div class="content">${contentHtml}</div>
+                            <div class="actions">
+                                <button class="del-btn" data-id="${escapeHtml(msg.id)}">🗑 删除</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+            container.scrollTop = 0;
+
+            // KaTeX 渲染
+            if (window.renderMathInElement) {
+                try {
+                    renderMathInElement(container, {
+                        delimiters: [
+                            { left: '$$', right: '$$', display: true },
+                            { left: '\\(', right: '\\)', display: false },
+                            { left: '\\[', right: '\\]', display: true }
+                        ],
+                        throwOnError: false
+                    });
+                } catch (e) { console.warn('KaTeX 渲染警告:', e); }
+            }
+
+            // 删除事件
+            container.querySelectorAll('.del-btn').forEach(btn => {
+                btn.addEventListener('click', async function(e) {
+                    const id = this.dataset.id;
+                    if (!confirm('确定删除这条消息吗？')) return;
+                    await deleteMessage(id);
+                });
+            });
+
+            // 公告栏
+            const pinned = allMessages.filter(m => m.isPinned);
+            if (pinned.length > 0) {
+                const latestPin = pinned.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+                announceBar.classList.add('show');
+                let pinContent = latestPin.content;
+                if (typeof marked !== 'undefined') pinContent = marked.parseInline(pinContent);
+                else pinContent = escapeHtml(pinContent);
+                announceContent.innerHTML = `📌 <strong>${escapeHtml(latestPin.nickname)}</strong>：${pinContent}`;
+            } else {
+                announceBar.classList.remove('show');
+            }
+        }
+
+        // -------------------- 加载 --------------------
+        async function loadMessages() {
+            console.log('🔄 loadMessages 开始');
+            if (!isReady) {
+                if (typeof Octokit === 'undefined') {
+                    messageList.innerHTML = `<div class="empty-state">⏳ 正在加载依赖库，请稍后...</div>`;
+                    console.warn('⏳ Octokit 未就绪，等待中...');
+                    return;
+                }
+                isReady = true;
+                console.log('✅ 依赖已就绪');
+            }
+            const msgs = await fetchMessages();
+            if (msgs) {
+                allMessages = msgs;
+                renderMessages();
+            }
+        }
+
+        // -------------------- 删除 --------------------
+        async function deleteMessage(id) {
+            if (!token) return alert('未配置 Token');
+            const idx = allMessages.findIndex(m => m.id === id);
+            if (idx === -1) return;
+            try {
+                allMessages.splice(idx, 1);
+                await saveMessages(allMessages);
+                renderMessages();
+            } catch (err) {
+                alert('删除失败：' + err.message);
+                await loadMessages();
+            }
+        }
+
+        // -------------------- 发送 --------------------
+        async function sendMessage() {
+            console.log('📤 发送消息');
+            const nickname = nickInput.value.trim() || '匿名';
+            const content = msgInput.value.trim();
+            if (!content) return alert('请输入消息内容');
+            if (!token) return alert('请先配置 Token');
+            if (!isReady) {
+                if (typeof Octokit === 'undefined') {
+                    alert('Octokit 库尚未加载，请刷新页面重试');
+                    return;
+                }
+                isReady = true;
+            }
+
+            const newMsg = {
+                id: generateId(),
+                nickname: nickname,
+                content: content,
+                timestamp: new Date().toISOString(),
+                isPinned: pinCheckbox.checked
+            };
+
+            sendBtn.disabled = true;
+            try {
+                allMessages.push(newMsg);
+                await saveMessages(allMessages);
+                msgInput.value = '';
+                msgInput.style.height = 'auto';
+                pinCheckbox.checked = false;
+                await loadMessages();
+            } catch (err) {
+                alert('发送失败：' + err.message);
+                await loadMessages();
+            } finally {
+                sendBtn.disabled = false;
+                msgInput.focus();
+            }
+        }
+
+        // -------------------- 轮询 --------------------
+        function startPolling() {
+            if (pollingTimer) clearInterval(pollingTimer);
+            pollingTimer = setInterval(loadMessages, 4000);
+            console.log('⏰ 轮询启动 (4s)');
+        }
+        function stopPolling() {
+            if (pollingTimer) { clearInterval(pollingTimer); pollingTimer = null; console.log('⏹️ 轮询停止'); }
+        }
+
+        // -------------------- 配置弹窗 --------------------
+        function openModal() {
+            console.log('⚙️ 打开配置');
+            tokenInput.value = token || '';
+            defaultNickInput.value = nickInput.value || '访客';
+            configModal.classList.add('active');
+        }
+        function closeModal() {
+            configModal.classList.remove('active');
+        }
+        function saveConfig() {
+            console.log('💾 保存配置');
+            const newToken = tokenInput.value.trim();
+            const defaultNick = defaultNickInput.value.trim() || '访客';
+            if (!newToken) return alert('请输入 GitHub Token');
+            token = newToken;
+            nickInput.value = defaultNick;
+            localStorage.setItem('chat_json_token', token);
+            localStorage.setItem('chat_json_nick', defaultNick);
+            closeModal();
+            isReady = false; // 强制重新检查依赖
+            loadMessages();
+            startPolling();
+        }
+
+        // ================================================================
+        //  初始化（使用 window.onload 确保所有资源加载完毕）
+        // ================================================================
+        function initApp() {
+            console.log('🚀 初始化开始 (window.onload)');
+
+            // 1. 事件绑定（保证每个按钮都可点击）
+            sendBtn.addEventListener('click', sendMessage);
+            refreshBtn.addEventListener('click', function(e) {
+                console.log('🔄 手动刷新按钮点击');
+                loadMessages();
+            });
+            configBtn.addEventListener('click', function(e) {
+                console.log('⚙️ 配置按钮点击');
+                openModal();
+            });
+            modalCancel.addEventListener('click', closeModal);
+            modalSave.addEventListener('click', saveConfig);
+            closeAnnounce.addEventListener('click', () => {
+                announceBar.classList.remove('show');
+            });
+
+            msgInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+            msgInput.addEventListener('input', () => {
+                msgInput.style.height = 'auto';
+                msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
+            });
+
+            searchInput.addEventListener('input', renderMessages);
+            clearSearch.addEventListener('click', () => {
+                searchInput.value = '';
+                renderMessages();
+            });
+
+            configModal.addEventListener('click', (e) => {
+                if (e.target === configModal) closeModal();
+            });
+
+            window.addEventListener('beforeunload', stopPolling);
+
+            console.log('✅ 事件绑定完成');
+
+            // 2. 从 localStorage 恢复
+            const savedToken = localStorage.getItem('chat_json_token');
+            const savedNick = localStorage.getItem('chat_json_nick') || '访客';
+            if (savedToken) {
+                token = savedToken;
+                nickInput.value = savedNick;
+                console.log('📂 从 localStorage 恢复 Token 和昵称');
+                // 检查依赖是否已加载
+                if (typeof Octokit !== 'undefined') {
+                    isReady = true;
+                    console.log('✅ Octokit 已就绪');
+                    loadMessages();
+                    startPolling();
+                } else {
+                    console.warn('⏳ Octokit 尚未加载，等待...');
+                    messageList.innerHTML = `<div class="empty-state">⏳ 等待依赖库加载...</div>`;
+                    // 等待 Octokit 加载
+                    const check = setInterval(() => {
+                        if (typeof Octokit !== 'undefined') {
+                            clearInterval(check);
+                            isReady = true;
+                            console.log('✅ Octokit 加载完成');
+                            loadMessages();
+                            startPolling();
+                        }
+                    }, 300);
+                    // 10秒超时
+                    setTimeout(() => { clearInterval(check); }, 10000);
+                }
+            } else {
+                messageList.innerHTML = `<div class="empty-state">⚙️ 点击「配置」连接你的 GitHub 仓库</div>`;
+                console.log('📭 无保存的 Token，等待配置');
+            }
+
+            console.log('✅ 初始化完成');
+        }
+
+        // 确保在 window 加载完成后执行
+        if (document.readyState === 'complete') {
+            initApp();
+        } else {
+            window.addEventListener('load', initApp);
+        }
+
+        // 同时，如果 DOM 已加载但 window 未触发，也尝试初始化（兜底）
+        if (document.readyState === 'interactive' || document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                // 如果 window 的 load 还没触发，但 DOM 已就绪，我们可以先绑定事件，但依赖可能未加载
+                // 但为了安全，我们只做一次初始化，由 load 触发完整初始化。
+                console.log('📄 DOMContentLoaded 触发，等待 window.load 完成初始化');
+            });
+        }
+
+    })();
+</script>
+
 </body>
 </html>
