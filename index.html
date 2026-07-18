@@ -1,139 +1,788 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <title>My Blog & Tools</title>
-  <link rel="stylesheet" href="style.css">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-cpp.min.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GitHub Issues 聊天室</title>
+
+  <!-- 使用 Marked 渲染 Markdown (可选) -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <style>
+    /* ===== 全局重置 & 暗色主题变量 ===== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-body: #0d1117;
+      --bg-card: #161b22;
+      --bg-input: #0d1117;
+      --border-color: #30363d;
+      --text-primary: #c9d1d9;
+      --text-secondary: #8b949e;
+      --text-muted: #484f58;
+      --accent: #58a6ff;
+      --accent-hover: #79c0ff;
+      --btn-bg: #238636;
+      --btn-hover: #2ea043;
+      --shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      --radius: 12px;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg-body);
+      color: var(--text-primary);
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 0;
+      padding: 16px;
+    }
+
+    /* ===== 主容器 ===== */
+    .app {
+      width: 100%;
+      max-width: 800px;
+      height: 90vh;
+      max-height: 700px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ===== 顶部栏 ===== */
+    .header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+      background: var(--bg-card);
+    }
+
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .header h1 span {
+      background: var(--accent);
+      color: #0d1117;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 2px 10px;
+      border-radius: 20px;
+      margin-left: 4px;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .header-actions button {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .header-actions button:hover {
+      background: var(--border-color);
+      color: var(--text-primary);
+    }
+
+    .header-actions .config-btn {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .header-actions .config-btn:hover {
+      background: var(--accent);
+      color: #0d1117;
+    }
+
+    /* ===== 消息列表 ===== */
+    .message-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: var(--bg-body);
+      scroll-behavior: smooth;
+    }
+
+    /* 消息条目 */
+    .message {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      animation: fadeIn 0.2s ease;
+    }
+
+    .message .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text-primary);
+      flex-shrink: 0;
+      text-transform: uppercase;
+      background: #2d333b;
+    }
+
+    .message .bubble {
+      flex: 1;
+      background: var(--bg-card);
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border-color);
+      word-break: break-word;
+    }
+
+    .message .bubble .meta {
+      display: flex;
+      gap: 12px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    .message .bubble .meta .author {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .message .bubble .meta .time {
+      color: var(--text-muted);
+    }
+
+    .message .bubble .content {
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--text-primary);
+    }
+
+    .message .bubble .content p {
+      margin: 0 0 6px 0;
+    }
+
+    .message .bubble .content p:last-child {
+      margin-bottom: 0;
+    }
+
+    .message .bubble .content code {
+      background: #1c2128;
+      padding: 0.2em 0.4em;
+      border-radius: 4px;
+      font-size: 0.9em;
+      color: #f0f6fc;
+    }
+
+    .message .bubble .content pre {
+      background: #1c2128;
+      padding: 12px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 6px 0;
+    }
+
+    /* 空状态 */
+    .empty-state {
+      text-align: center;
+      padding: 40px 0;
+      color: var(--text-muted);
+      font-size: 15px;
+    }
+
+    /* ===== 输入区域 ===== */
+    .input-area {
+      padding: 12px 20px 16px;
+      border-top: 1px solid var(--border-color);
+      background: var(--bg-card);
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+      flex-shrink: 0;
+    }
+
+    .input-area textarea {
+      flex: 1;
+      background: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      color: var(--text-primary);
+      font-size: 15px;
+      resize: none;
+      font-family: var(--font);
+      outline: none;
+      transition: border 0.2s;
+      min-height: 44px;
+      max-height: 120px;
+      line-height: 1.5;
+    }
+
+    .input-area textarea:focus {
+      border-color: var(--accent);
+    }
+
+    .input-area textarea::placeholder {
+      color: var(--text-muted);
+    }
+
+    .input-area .send-btn {
+      background: var(--btn-bg);
+      border: none;
+      color: #fff;
+      font-weight: 600;
+      padding: 10px 24px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 15px;
+      transition: background 0.2s;
+      height: 44px;
+      white-space: nowrap;
+    }
+
+    .input-area .send-btn:hover {
+      background: var(--btn-hover);
+    }
+
+    .input-area .send-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* ===== 配置模态框 ===== */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      max-width: 460px;
+      width: 90%;
+      box-shadow: var(--shadow);
+    }
+
+    .modal h2 {
+      font-size: 20px;
+      margin-bottom: 16px;
+    }
+
+    .modal label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-top: 16px;
+      margin-bottom: 4px;
+    }
+
+    .modal input {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 15px;
+      outline: none;
+      transition: border 0.2s;
+    }
+
+    .modal input:focus {
+      border-color: var(--accent);
+    }
+
+    .modal .hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .modal .actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+      justify-content: flex-end;
+    }
+
+    .modal .actions button {
+      padding: 8px 20px;
+      border-radius: 8px;
+      border: none;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .modal .actions .btn-primary {
+      background: var(--accent);
+      color: #0d1117;
+    }
+
+    .modal .actions .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+
+    .modal .actions .btn-secondary {
+      background: var(--border-color);
+      color: var(--text-primary);
+    }
+
+    .modal .actions .btn-secondary:hover {
+      background: #484f58;
+    }
+
+    /* ===== 动画 ===== */
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* ===== 滚动条美化 ===== */
+    .message-list::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .message-list::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .message-list::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 8px;
+    }
+
+    .message-list::-webkit-scrollbar-thumb:hover {
+      background: #484f58;
+    }
+
+    /* ===== 响应式 ===== */
+    @media (max-width: 600px) {
+      .app {
+        height: 100vh;
+        max-height: none;
+        border-radius: 0;
+        border: none;
+      }
+      .header h1 {
+        font-size: 16px;
+      }
+      .input-area {
+        padding: 10px 12px 12px;
+        gap: 8px;
+      }
+      .input-area textarea {
+        font-size: 14px;
+        padding: 8px 12px;
+      }
+      .input-area .send-btn {
+        padding: 8px 16px;
+        font-size: 14px;
+      }
+      .modal {
+        padding: 20px;
+      }
+    }
+  </style>
 </head>
 <body>
-<div class="container">
-  <header>
-    <h1>My Blog</h1>
-    <nav>
-      <a href="index.html">博客</a>
-      <a href="tools.html">工具</a>
-    </nav>
-  </header>
 
-  <div class="post-editor">
-    <input id="title" placeholder="文章标题">
-    <textarea id="content" placeholder="文章内容（支持```cpp代码块）"></textarea>
-    
-    <div style="display:flex;gap:10px;margin-bottom:10px;">
-      <input id="token" placeholder="GitHub Token（仅作者需要）" style="flex:1;">
-      <button onclick="saveToken()">保存Token</button>
+  <!-- ===== 主应用 ===== -->
+  <div class="app" id="app">
+    <!-- 顶部 -->
+    <header class="header">
+      <h1>💬 聊天室 <span>GitHub</span></h1>
+      <div class="header-actions">
+        <button class="config-btn" id="configBtn">⚙️ 配置</button>
+        <button id="refreshBtn">🔄 刷新</button>
+      </div>
+    </header>
+
+    <!-- 消息列表 -->
+    <div class="message-list" id="messageList">
+      <div class="empty-state">💡 点击「配置」设置仓库，然后开始聊天</div>
     </div>
 
-    <button onclick="publish()">发布到 Issues</button>
-    <button onclick="loadPosts()">刷新文章</button>
+    <!-- 输入区域 -->
+    <div class="input-area">
+      <textarea id="msgInput" rows="1" placeholder="输入消息… 支持 Markdown"></textarea>
+      <button class="send-btn" id="sendBtn">发送</button>
+    </div>
   </div>
 
-  <div id="posts"><div class="empty-posts">加载中...</div></div>
-</div>
+  <!-- ===== 配置模态框 ===== -->
+  <div class="modal-overlay" id="configModal">
+    <div class="modal">
+      <h2>⚙️ 仓库配置</h2>
+      <label>GitHub Token</label>
+      <input type="password" id="tokenInput" placeholder="ghp_xxxx…" />
+      <div class="hint">需具有 <strong>repo</strong> 权限，用于创建 Issues</div>
 
-<script>
-const USER = "liuyio-awa";
-const REPO = "liuyio-awa.github.io";
-let gToken = localStorage.getItem("gh_token") || "";
+      <label>仓库所有者</label>
+      <input type="text" id="ownerInput" placeholder="你的用户名" />
 
-window.onload = () => {
-  document.getElementById("token").value = gToken;
-  loadPosts();
-};
+      <label>仓库名</label>
+      <input type="text" id="repoInput" placeholder="仓库名" />
 
-// 一键保存Token（你要的按钮）
-function saveToken() {
-  gToken = document.getElementById("token").value.trim();
-  if (!gToken) return alert("请输入Token");
-  localStorage.setItem("gh_token", gToken);
-  alert("Token保存成功！以后不用再输");
-}
-
-// 发布文章
-async function publish() {
-  const title = document.getElementById("title").value.trim();
-  const body = document.getElementById("content").value.trim();
-  if (!title || !body) return alert("标题和内容不能为空");
-  if (!gToken) return alert("请先保存Token");
-
-  try {
-    const res = await fetch(`https://api.github.com/repos/${USER}/${REPO}/issues`, {
-      method: "POST",
-      headers: {
-        "Authorization": "token " + gToken,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ title, body })
-    });
-    if (res.ok) {
-      alert("发布成功！");
-      document.getElementById("title").value = "";
-      document.getElementById("content").value = "";
-      loadPosts();
-    } else {
-      alert("发布失败：Token无效或权限不足");
-    }
-  } catch (e) {
-    alert("发布失败");
-  }
-}
-
-// 加载文章（游客/作者通用）
-async function loadPosts() {
-  const el = document.getElementById("posts");
-  el.innerHTML = "<div class='empty-posts'>加载中...</div>";
-
-  try {
-    let res;
-    if (gToken) {
-      // 作者：快速加载
-      res = await fetch(`https://api.github.com/repos/${USER}/${REPO}/issues`, {
-        headers: { Authorization: "token " + gToken }
-      });
-    } else {
-      // 游客：无Token访问
-      res = await fetch(`https://api.github.com/repos/${USER}/${REPO}/issues`);
-    }
-
-    const data = await res.json();
-    const list = data.filter(i => !i.pull_request);
-
-    if (list.length === 0) {
-      el.innerHTML = "<div class='empty-posts'>暂无文章</div>";
-      return;
-    }
-
-    el.innerHTML = list.map(item => `
-      <div class="post">
-        <h2>${escape(item.title)}</h2>
-        <div class="post-content">${md(item.body)}</div>
+      <div class="actions">
+        <button class="btn-secondary" id="modalCancel">取消</button>
+        <button class="btn-primary" id="modalSave">保存并连接</button>
       </div>
-    `).join("");
+    </div>
+  </div>
 
-    Prism.highlightAll();
-  } catch (e) {
-    el.innerHTML = "<div class='empty-posts'>加载成功！文章已在 Issues 中</div>";
-  }
-}
+  <script>
+    (function() {
+      'use strict';
 
-function escape(s) {
-  if (!s) return "";
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
+      // ----- DOM 引用 -----
+      const messageList = document.getElementById('messageList');
+      const msgInput = document.getElementById('msgInput');
+      const sendBtn = document.getElementById('sendBtn');
+      const refreshBtn = document.getElementById('refreshBtn');
+      const configBtn = document.getElementById('configBtn');
+      const configModal = document.getElementById('configModal');
+      const tokenInput = document.getElementById('tokenInput');
+      const ownerInput = document.getElementById('ownerInput');
+      const repoInput = document.getElementById('repoInput');
+      const modalSave = document.getElementById('modalSave');
+      const modalCancel = document.getElementById('modalCancel');
 
-function md(s) {
-  if (!s) return "";
-  s = s.replace(/```([\s\S]*?)```/g, (_, c) => {
-    const lines = c.split("\n");
-    const lang = lines[0] || "text";
-    const code = lines.slice(1).join("\n");
-    return `<pre><code class="language-${lang}">${escape(code)}</code></pre>`;
-  });
-  return s.replace(/\n/g, "<br>");
-}
-</script>
+      // ----- 状态 -----
+      let config = {
+        token: '',
+        owner: '',
+        repo: ''
+      };
+      let pollingTimer = null;
+      let isLoading = false;
+
+      // ----- 工具函数 -----
+      function getAvatarColor(name) {
+        let hash = 0;
+        for (let i = 0; i < name.length; i++) {
+          hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#cddc39', '#ffeb3b', '#ffc107', '#ff9800', '#ff5722'];
+        return colors[Math.abs(hash) % colors.length];
+      }
+
+      function formatDate(isoString) {
+        const d = new Date(isoString);
+        return d.toLocaleString('zh-CN', { hour12: false });
+      }
+
+      // 安全 escape (防 XSS)
+      function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // 渲染 Markdown（使用 marked）
+      function renderMarkdown(text) {
+        if (!text) return '';
+        try {
+          return marked.parse(text);
+        } catch (_) {
+          return escapeHtml(text);
+        }
+      }
+
+      // ----- 加载消息 -----
+      async function loadMessages() {
+        if (!config.token || !config.owner || !config.repo) {
+          messageList.innerHTML = `<div class="empty-state">⚠️ 请先点击「配置」完成设置</div>`;
+          return;
+        }
+
+        if (isLoading) return;
+        isLoading = true;
+
+        try {
+          const url = `https://api.github.com/repos/${config.owner}/${config.repo}/issues?sort=created&direction=desc&per_page=50`;
+          const resp = await fetch(url, {
+            headers: {
+              'Authorization': `token ${config.token}`,
+              'Accept': 'application/vnd.github.v3+json'
+            }
+          });
+
+          if (!resp.ok) {
+            const errMsg = resp.status === 404 ? '仓库不存在或 Token 无权限' :
+                           resp.status === 401 ? 'Token 无效' :
+                           `HTTP ${resp.status}`;
+            messageList.innerHTML = `<div class="empty-state">❌ 加载失败：${errMsg}</div>`;
+            return;
+          }
+
+          const issues = await resp.json();
+          // 过滤掉 PR（pull_request 字段存在且不为 null）
+          const messages = issues.filter(i => !i.pull_request);
+
+          if (messages.length === 0) {
+            messageList.innerHTML = `<div class="empty-state">📭 还没有消息，发一条吧！</div>`;
+            return;
+          }
+
+          // 按创建时间升序（旧→新）
+          messages.reverse();
+
+          let html = '';
+          messages.forEach(issue => {
+            const author = issue.user ? issue.user.login : '未知';
+            const avatarLetter = author.charAt(0).toUpperCase();
+            const color = getAvatarColor(author);
+            const time = formatDate(issue.created_at);
+            const bodyHtml = renderMarkdown(issue.body || '');
+
+            html += `
+              <div class="message">
+                <div class="avatar" style="background:${color};">${escapeHtml(avatarLetter)}</div>
+                <div class="bubble">
+                  <div class="meta">
+                    <span class="author">${escapeHtml(author)}</span>
+                    <span class="time">${escapeHtml(time)}</span>
+                  </div>
+                  <div class="content">${bodyHtml}</div>
+                </div>
+              </div>
+            `;
+          });
+
+          messageList.innerHTML = html;
+          // 滚动到底部（最新消息）
+          messageList.scrollTop = messageList.scrollHeight;
+
+        } catch (err) {
+          messageList.innerHTML = `<div class="empty-state">❌ 网络错误，请稍后重试</div>`;
+          console.error(err);
+        } finally {
+          isLoading = false;
+        }
+      }
+
+      // ----- 发送消息 -----
+      async function sendMessage() {
+        const text = msgInput.value.trim();
+        if (!text) return;
+        if (!config.token || !config.owner || !config.repo) {
+          alert('请先点击「配置」完成仓库设置');
+          return;
+        }
+
+        sendBtn.disabled = true;
+        const originalText = msgInput.value;
+
+        try {
+          // 使用当前时间作为标题的一部分，便于区分
+          const title = `消息 ${new Date().toLocaleString('zh-CN')}`;
+          const body = text; // 支持 Markdown
+
+          const resp = await fetch(`https://api.github.com/repos/${config.owner}/${config.repo}/issues`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `token ${config.token}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/vnd.github.v3+json'
+            },
+            body: JSON.stringify({ title, body })
+          });
+
+          if (!resp.ok) {
+            const errorData = await resp.json().catch(() => ({}));
+            alert(`发送失败：${errorData.message || resp.statusText}`);
+            return;
+          }
+
+          // 清空输入框
+          msgInput.value = '';
+          msgInput.style.height = 'auto';
+          // 重新加载消息列表
+          await loadMessages();
+
+        } catch (err) {
+          alert('发送失败，请检查网络');
+          console.error(err);
+        } finally {
+          sendBtn.disabled = false;
+          msgInput.focus();
+        }
+      }
+
+      // ----- 轮询 -----
+      function startPolling() {
+        if (pollingTimer) clearInterval(pollingTimer);
+        // 每 5 秒刷新一次 (避免 API 限制)
+        pollingTimer = setInterval(() => {
+          loadMessages();
+        }, 5000);
+      }
+
+      function stopPolling() {
+        if (pollingTimer) {
+          clearInterval(pollingTimer);
+          pollingTimer = null;
+        }
+      }
+
+      // ----- 保存配置 -----
+      function saveConfigAndConnect() {
+        const token = tokenInput.value.trim();
+        const owner = ownerInput.value.trim();
+        const repo = repoInput.value.trim();
+
+        if (!token || !owner || !repo) {
+          alert('请填写完整信息');
+          return;
+        }
+
+        config.token = token;
+        config.owner = owner;
+        config.repo = repo;
+
+        // 保存到 localStorage
+        try {
+          localStorage.setItem('chat_config', JSON.stringify({ token, owner, repo }));
+        } catch (_) {}
+
+        closeModal();
+        // 重新加载
+        loadMessages();
+        startPolling();
+      }
+
+      // ----- 模态框控制 -----
+      function openModal() {
+        // 填入当前配置
+        tokenInput.value = config.token || '';
+        ownerInput.value = config.owner || '';
+        repoInput.value = config.repo || '';
+        configModal.classList.add('active');
+      }
+
+      function closeModal() {
+        configModal.classList.remove('active');
+      }
+
+      // ----- 从 localStorage 恢复配置 -----
+      function loadConfigFromStorage() {
+        try {
+          const raw = localStorage.getItem('chat_config');
+          if (raw) {
+            const saved = JSON.parse(raw);
+            if (saved.token && saved.owner && saved.repo) {
+              config = saved;
+              return true;
+            }
+          }
+        } catch (_) {}
+        return false;
+      }
+
+      // ----- 初始化 -----
+      function init() {
+        // 自动恢复配置
+        const hasConfig = loadConfigFromStorage();
+        if (hasConfig) {
+          // 自动加载消息
+          loadMessages();
+          startPolling();
+        } else {
+          // 显示空状态提示配置
+          messageList.innerHTML = `<div class="empty-state">⚙️ 点击「配置」设置 GitHub 仓库</div>`;
+        }
+
+        // 事件绑定
+        sendBtn.addEventListener('click', sendMessage);
+        refreshBtn.addEventListener('click', () => {
+          loadMessages();
+        });
+        configBtn.addEventListener('click', openModal);
+        modalCancel.addEventListener('click', closeModal);
+        modalSave.addEventListener('click', saveConfigAndConnect);
+
+        // Enter 发送 (Shift+Enter 换行)
+        msgInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+          }
+        });
+
+        // 自动调整文本框高度
+        msgInput.addEventListener('input', () => {
+          msgInput.style.height = 'auto';
+          msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
+        });
+
+        // 点击模态框外部关闭
+        configModal.addEventListener('click', (e) => {
+          if (e.target === configModal) closeModal();
+        });
+
+        // 页面关闭前停止轮询
+        window.addEventListener('beforeunload', () => {
+          stopPolling();
+        });
+      }
+
+      // 启动
+      init();
+
+    })();
+  </script>
+
 </body>
 </html>
