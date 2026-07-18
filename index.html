@@ -3,18 +3,16 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GitHub 留言板 · 暗黑 · Markdown+LaTeX</title>
+    <title>GitHub 留言板 · 原生 fetch · 暗黑</title>
 
-    <!-- ===== 外部依赖 ===== -->
-    <!-- 用最新的稳定 CDN -->
+    <!-- 可选依赖：Markdown 和 KaTeX（CDN 失败不影响核心功能） -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/contrib/auto-render.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@octokit/rest@20.0.2/dist-bundle/octokit.min.js"></script>
 
     <style>
-        /* ===== 完全相同的暗色主题 ===== */
+        /* ===== 完全一致的暗色主题 ===== */
         * { margin:0; padding:0; box-sizing:border-box; }
         :root {
             --bg-body:#0d1117; --bg-card:#161b22; --bg-input:#0d1117;
@@ -119,7 +117,7 @@
 
 <div class="app" id="app">
     <header class="header">
-        <h1>💬 留言板 <small>Markdown + LaTeX</small></h1>
+        <h1>💬 留言板 <small>原生 fetch</small></h1>
         <div class="header-actions">
             <button id="refreshBtn">🔄 刷新</button>
             <button class="config-btn" id="configBtn">⚙️ 配置</button>
@@ -168,15 +166,13 @@
     </div>
 </div>
 
-<!-- ========== 所有 JavaScript 放在最后，确保 DOM 就绪 ========== -->
 <script>
     (function() {
         'use strict';
 
-        // -------------------- 调试日志 --------------------
-        console.log('🚀 留言板脚本开始加载...');
+        console.log('🚀 留言板启动 (原生 fetch 版)');
 
-        // -------------------- 获取 DOM 元素 --------------------
+        // -------------------- DOM 引用 --------------------
         const messageList = document.getElementById('messageList');
         const nickInput = document.getElementById('nickInput');
         const msgInput = document.getElementById('msgInput');
@@ -195,7 +191,7 @@
         const announceContent = document.getElementById('announceContent');
         const closeAnnounce = document.getElementById('closeAnnounce');
 
-        // -------------------- 固定配置 --------------------
+        // -------------------- 固定仓库信息 --------------------
         const OWNER = 'liuyio-awa';
         const REPO = 'liuyio-awa.github.io';
         const PATH = 'posts.json';
@@ -205,9 +201,8 @@
         let token = '';
         let allMessages = [];
         let pollingTimer = null;
-        let isReady = false;   // 标记依赖是否加载完成
 
-        // -------------------- 工具函数 (不依赖外部库) --------------------
+        // -------------------- 工具函数 (完全原生) --------------------
         function utf8ToBase64(str) {
             return btoa(unescape(encodeURIComponent(str)));
         }
@@ -233,69 +228,101 @@
             return colors[Math.abs(h) % colors.length];
         }
 
-        // -------------------- 核心功能 (依赖 Octokit) --------------------
+        // -------------------- 核心 API 操作 (使用原生 fetch) --------------------
+        async function getFileSha() {
+            // 获取 posts.json 的 SHA (用于更新)
+            const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}?ref=${BRANCH}`;
+            const headers = { 'Accept': 'application/vnd.github.v3+json' };
+            if (token) headers['Authorization'] = `token ${token}`;
+            const resp = await fetch(url, { headers });
+            if (resp.status === 404) return null;
+            if (!resp.ok) throw new Error(`获取文件信息失败: ${resp.status}`);
+            const data = await resp.json();
+            return data.sha;
+        }
+
         async function fetchMessages() {
-            console.log('📥 fetchMessages 被调用, token=', token ? '已设置' : '未设置');
+            console.log('📥 读取 posts.json');
             if (!token) {
-                messageList.innerHTML = `<div class="empty-state">⚠️ 请先点击「配置」设置 GitHub Token</div>`;
-                return [];
-            }
-            if (typeof Octokit === 'undefined') {
-                console.error('❌ Octokit 未定义');
-                messageList.innerHTML = `<div class="empty-state">❌ Octokit 库未加载，请检查网络或刷新页面</div>`;
+                messageList.innerHTML = `<div class="empty-state">⚠️ 请先配置 Token</div>`;
                 return [];
             }
             try {
-                const octokit = new Octokit({ auth: token });
-                let resp;
-                try {
-                    resp = await octokit.rest.repos.getContent({ owner: OWNER, repo: REPO, path: PATH, ref: BRANCH });
-                } catch (err) {
-                    if (err.status === 404) {
-                        console.log('📄 posts.json 不存在，自动创建...');
-                        await octokit.rest.repos.createOrUpdateFileContents({
-                            owner: OWNER, repo: REPO, path: PATH,
-                            message: '初始化留言板', content: utf8ToBase64('[]'), branch: BRANCH
-                        });
-                        resp = await octokit.rest.repos.getContent({ owner: OWNER, repo: REPO, path: PATH, ref: BRANCH });
-                    } else throw err;
+                const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}?ref=${BRANCH}`;
+                const resp = await fetch(url, {
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+                if (resp.status === 404) {
+                    // 文件不存在，创建空文件
+                    console.log('📄 posts.json 不存在，自动创建');
+                    const createResp = await fetch(url, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `token ${token}`,
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/vnd.github.v3+json'
+                        },
+                        body: JSON.stringify({
+                            message: '初始化留言板',
+                            content: utf8ToBase64('[]'),
+                            branch: BRANCH
+                        })
+                    });
+                    if (!createResp.ok) throw new Error(`创建文件失败: ${createResp.status}`);
+                    // 再次读取
+                    const newResp = await fetch(url, {
+                        headers: {
+                            'Authorization': `token ${token}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    });
+                    if (!newResp.ok) throw new Error(`读取新文件失败: ${newResp.status}`);
+                    const data = await newResp.json();
+                    const raw = base64ToUtf8(data.content);
+                    return JSON.parse(raw);
                 }
-                const raw = base64ToUtf8(resp.data.content);
-                const data = JSON.parse(raw);
-                console.log(`✅ 成功读取 ${data.length} 条消息`);
-                return data;
+                if (!resp.ok) throw new Error(`读取失败: ${resp.status}`);
+                const data = await resp.json();
+                const raw = base64ToUtf8(data.content);
+                const msgs = JSON.parse(raw);
+                console.log(`✅ 读取成功，共 ${msgs.length} 条`);
+                return msgs;
             } catch (err) {
                 console.error('❌ 读取失败:', err);
-                if (err.status === 401) {
-                    messageList.innerHTML = `<div class="empty-state">❌ Token 无效或权限不足，请重新配置</div>`;
-                } else {
-                    messageList.innerHTML = `<div class="empty-state">❌ 读取失败：${escapeHtml(err.message)}</div>`;
-                }
+                messageList.innerHTML = `<div class="empty-state">❌ 读取失败：${escapeHtml(err.message)}</div>`;
                 return [];
             }
         }
 
         async function saveMessages(messages) {
+            console.log('💾 保存消息');
             if (!token) throw new Error('未配置 Token');
-            if (typeof Octokit === 'undefined') throw new Error('Octokit 未加载');
-            const octokit = new Octokit({ auth: token });
-            let sha;
-            try {
-                const resp = await octokit.rest.repos.getContent({ owner: OWNER, repo: REPO, path: PATH, ref: BRANCH });
-                sha = resp.data.sha;
-            } catch (err) { if (err.status !== 404) throw err; }
-            await octokit.rest.repos.createOrUpdateFileContents({
-                owner: OWNER, repo: REPO, path: PATH,
-                message: `更新留言 (${messages.length} 条)`,
-                content: utf8ToBase64(JSON.stringify(messages, null, 2)),
-                branch: BRANCH, sha: sha || undefined
+            const sha = await getFileSha();
+            const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}`;
+            const resp = await fetch(url, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/vnd.github.v3+json'
+                },
+                body: JSON.stringify({
+                    message: `更新留言 (${messages.length} 条)`,
+                    content: utf8ToBase64(JSON.stringify(messages, null, 2)),
+                    branch: BRANCH,
+                    sha: sha || undefined
+                })
             });
-            console.log('💾 保存成功');
+            if (!resp.ok) throw new Error(`保存失败: ${resp.status}`);
+            console.log('✅ 保存成功');
         }
 
-        // -------------------- 渲染 (依赖 marked 和 KaTeX) --------------------
+        // -------------------- 渲染 (使用 marked 和 KaTeX 如果可用) --------------------
         function renderMessages() {
-            console.log('🖌️ 渲染消息列表, 共', allMessages.length, '条');
+            console.log('🖌️ 渲染消息');
             const container = messageList;
             let filtered = [...allMessages];
             const keyword = searchInput.value.trim().toLowerCase();
@@ -322,8 +349,9 @@
                 const color = getColor(msg.nickname || '匿名');
                 const time = formatTime(msg.timestamp);
                 let contentHtml = msg.content || '';
+                // 如果 marked 已加载则解析，否则纯文本
                 if (typeof marked !== 'undefined') {
-                    contentHtml = marked.parse(contentHtml);
+                    try { contentHtml = marked.parse(contentHtml); } catch (_) {}
                 } else {
                     contentHtml = escapeHtml(contentHtml).replace(/\n/g, '<br>');
                 }
@@ -347,7 +375,7 @@
             container.innerHTML = html;
             container.scrollTop = 0;
 
-            // KaTeX 渲染
+            // KaTeX 渲染（如果可用）
             if (window.renderMathInElement) {
                 try {
                     renderMathInElement(container, {
@@ -361,7 +389,7 @@
                 } catch (e) { console.warn('KaTeX 渲染警告:', e); }
             }
 
-            // 删除事件
+            // 删除按钮事件
             container.querySelectorAll('.del-btn').forEach(btn => {
                 btn.addEventListener('click', async function(e) {
                     const id = this.dataset.id;
@@ -376,8 +404,11 @@
                 const latestPin = pinned.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
                 announceBar.classList.add('show');
                 let pinContent = latestPin.content;
-                if (typeof marked !== 'undefined') pinContent = marked.parseInline(pinContent);
-                else pinContent = escapeHtml(pinContent);
+                if (typeof marked !== 'undefined') {
+                    try { pinContent = marked.parseInline(pinContent); } catch (_) {}
+                } else {
+                    pinContent = escapeHtml(pinContent);
+                }
                 announceContent.innerHTML = `📌 <strong>${escapeHtml(latestPin.nickname)}</strong>：${pinContent}`;
             } else {
                 announceBar.classList.remove('show');
@@ -386,16 +417,7 @@
 
         // -------------------- 加载 --------------------
         async function loadMessages() {
-            console.log('🔄 loadMessages 开始');
-            if (!isReady) {
-                if (typeof Octokit === 'undefined') {
-                    messageList.innerHTML = `<div class="empty-state">⏳ 正在加载依赖库，请稍后...</div>`;
-                    console.warn('⏳ Octokit 未就绪，等待中...');
-                    return;
-                }
-                isReady = true;
-                console.log('✅ 依赖已就绪');
-            }
+            console.log('🔄 加载消息');
             const msgs = await fetchMessages();
             if (msgs) {
                 allMessages = msgs;
@@ -425,13 +447,6 @@
             const content = msgInput.value.trim();
             if (!content) return alert('请输入消息内容');
             if (!token) return alert('请先配置 Token');
-            if (!isReady) {
-                if (typeof Octokit === 'undefined') {
-                    alert('Octokit 库尚未加载，请刷新页面重试');
-                    return;
-                }
-                isReady = true;
-            }
 
             const newMsg = {
                 id: generateId(),
@@ -488,32 +503,29 @@
             localStorage.setItem('chat_json_token', token);
             localStorage.setItem('chat_json_nick', defaultNick);
             closeModal();
-            isReady = false; // 强制重新检查依赖
             loadMessages();
             startPolling();
         }
 
         // ================================================================
-        //  初始化（使用 window.onload 确保所有资源加载完毕）
+        //  初始化 (无需等待外部库，直接绑定事件)
         // ================================================================
         function initApp() {
-            console.log('🚀 初始化开始 (window.onload)');
+            console.log('🚀 初始化...');
 
-            // 1. 事件绑定（保证每个按钮都可点击）
+            // 事件绑定
             sendBtn.addEventListener('click', sendMessage);
             refreshBtn.addEventListener('click', function(e) {
-                console.log('🔄 手动刷新按钮点击');
+                console.log('🔄 手动刷新按钮');
                 loadMessages();
             });
             configBtn.addEventListener('click', function(e) {
-                console.log('⚙️ 配置按钮点击');
+                console.log('⚙️ 配置按钮');
                 openModal();
             });
             modalCancel.addEventListener('click', closeModal);
             modalSave.addEventListener('click', saveConfig);
-            closeAnnounce.addEventListener('click', () => {
-                announceBar.classList.remove('show');
-            });
+            closeAnnounce.addEventListener('click', () => announceBar.classList.remove('show'));
 
             msgInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -538,59 +550,27 @@
 
             window.addEventListener('beforeunload', stopPolling);
 
-            console.log('✅ 事件绑定完成');
-
-            // 2. 从 localStorage 恢复
+            // 恢复本地存储
             const savedToken = localStorage.getItem('chat_json_token');
             const savedNick = localStorage.getItem('chat_json_nick') || '访客';
             if (savedToken) {
                 token = savedToken;
                 nickInput.value = savedNick;
-                console.log('📂 从 localStorage 恢复 Token 和昵称');
-                // 检查依赖是否已加载
-                if (typeof Octokit !== 'undefined') {
-                    isReady = true;
-                    console.log('✅ Octokit 已就绪');
-                    loadMessages();
-                    startPolling();
-                } else {
-                    console.warn('⏳ Octokit 尚未加载，等待...');
-                    messageList.innerHTML = `<div class="empty-state">⏳ 等待依赖库加载...</div>`;
-                    // 等待 Octokit 加载
-                    const check = setInterval(() => {
-                        if (typeof Octokit !== 'undefined') {
-                            clearInterval(check);
-                            isReady = true;
-                            console.log('✅ Octokit 加载完成');
-                            loadMessages();
-                            startPolling();
-                        }
-                    }, 300);
-                    // 10秒超时
-                    setTimeout(() => { clearInterval(check); }, 10000);
-                }
+                console.log('📂 恢复 Token 和昵称');
+                loadMessages();
+                startPolling();
             } else {
                 messageList.innerHTML = `<div class="empty-state">⚙️ 点击「配置」连接你的 GitHub 仓库</div>`;
-                console.log('📭 无保存的 Token，等待配置');
             }
 
-            console.log('✅ 初始化完成');
+            console.log('✅ 初始化完成，所有按钮已就绪');
         }
 
-        // 确保在 window 加载完成后执行
-        if (document.readyState === 'complete') {
-            initApp();
+        // 确保在 DOM 加载后启动
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initApp);
         } else {
-            window.addEventListener('load', initApp);
-        }
-
-        // 同时，如果 DOM 已加载但 window 未触发，也尝试初始化（兜底）
-        if (document.readyState === 'interactive' || document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', function() {
-                // 如果 window 的 load 还没触发，但 DOM 已就绪，我们可以先绑定事件，但依赖可能未加载
-                // 但为了安全，我们只做一次初始化，由 load 触发完整初始化。
-                console.log('📄 DOMContentLoaded 触发，等待 window.load 完成初始化');
-            });
+            initApp();
         }
 
     })();
