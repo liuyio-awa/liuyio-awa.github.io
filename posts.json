@@ -5,5 +5,12 @@
     "content": "test",
     "timestamp": "2026-07-18T13:23:49.505Z",
     "isPinned": false
+  },
+  {
+    "id": "mrqegkjj-15c42",
+    "nickname": "访客",
+    "content": "test2",
+    "timestamp": "2026-07-18T13:25:41.503Z",
+    "isPinned": false
   }
 ]
