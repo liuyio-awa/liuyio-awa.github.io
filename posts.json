@@ -12,5 +12,12 @@
     "content": "test2",
     "timestamp": "2026-07-18T13:25:41.503Z",
     "isPinned": false
+  },
+  {
+    "id": "mrr1agth-okv22",
+    "nickname": "访客",
+    "content": "好慢的输出，&10^9&",
+    "timestamp": "2026-07-19T00:04:47.909Z",
+    "isPinned": false
   }
 ]
