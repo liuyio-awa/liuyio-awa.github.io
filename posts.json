@@ -19,5 +19,12 @@
     "content": "$10^9$",
     "timestamp": "2026-07-19T00:05:33.060Z",
     "isPinned": false
+  },
+  {
+    "id": "mrr1cya7-n1wx0",
+    "nickname": "Admin",
+    "content": "注意消息发的很慢",
+    "timestamp": "2026-07-19T00:06:43.855Z",
+    "isPinned": true
   }
 ]
